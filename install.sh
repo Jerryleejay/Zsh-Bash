@@ -1,0 +1,93 @@
+#!/bin/bash
+
+# Check if script is run as root
+if [ "$EUID" -ne 0 ]; then 
+  echo "Please run with sudo: sudo bash install.sh"
+  exit
+fi
+
+echo "Installing z-on and z-off scripts..."
+
+# Create the z-on script
+cat << 'EOF' > /usr/local/bin/z-on
+#!/bin/bash
+sudo apt update
+sudo apt install -y zsh zsh-syntax-highlighting zsh-autosuggestions
+chsh -s $(which zsh)
+
+cat << 'ZSHRC' > ~/.zshrc
+HISTFILE=~/.zsh_history
+HISTSIZE=50000
+SAVEHIST=50000
+setopt APPEND_HISTORY SHARE_HISTORY HIST_IGNORE_ALL_DUPS HIST_IGNORE_SPACE
+setopt AUTO_CD EXTENDED_GLOB
+setopt interactive_comments
+unsetopt NOMATCH
+
+precmd() {
+  print -rP "%F{red}%n %f- %F{white}%m %f[%F{blue}%1~%f]"
+}
+
+PROMPT='%F{cyan}%D{%a %b %d} %F{yellow}%t %F{green}? %f'
+
+alias apt='sudo apt'
+
+update-system() {
+    sudo apt update && sudo apt full-upgrade -y && sudo apt autoremove --purge -y && sudo apt clean
+}
+
+autoload -Uz compinit && compinit
+zstyle ':completion:*' matcher-list 'm:{a-z}={A-Z}'
+
+[[ -f /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh ]] && \
+  source /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh
+[[ -f /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]] && \
+  source /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+
+autoload -U up-line-or-beginning-search down-line-or-beginning-search
+zle -N up-line-or-beginning-search
+zle -N down-line-or-beginning-search
+bindkey "^[[A" up-line-or-beginning-search
+bindkey "^[[B" down-line-or-beginning-search
+ZSHRC
+
+if ! grep -q "exec zsh" ~/.bashrc 2>/dev/null; then
+  cat << 'FALLBACK' >> ~/.bashrc
+if [[ -t 1 && -x $(command -v zsh) ]]; then
+  exec zsh -l
+fi
+FALLBACK
+fi
+
+if [ -x "$(command -v zsh)" ]; then
+    exec zsh -l
+fi
+EOF
+
+# Create the z-off script
+cat << 'EOF' > /usr/local/bin/z-off
+#!/bin/bash
+TARGET_HOME="$HOME"
+TARGET_USER="$USER"
+
+cp /etc/skel/.bashrc "$TARGET_HOME/.bashrc"
+
+sed -i '/exec zsh/d' "$TARGET_HOME/.bashrc"
+sed -i '/zsh -l/d' "$TARGET_HOME/.bashrc"
+
+echo "PS1='\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\\\$\[\033[00m\] '" >> "$TARGET_HOME/.bashrc"
+
+echo "alias apt='sudo apt'" >> "$TARGET_HOME/.bashrc"
+
+sudo chsh -s $(which bash) "$TARGET_USER"
+
+exec bash -l
+EOF
+
+# Set executable permissions
+chmod +x /usr/local/bin/z-on /usr/local/bin/z-off
+
+echo "-------------------------------------------"
+echo "SUCCESS: Installation Complete!"
+echo "Commands available: z-on, z-off"
+echo "-------------------------------------------"
