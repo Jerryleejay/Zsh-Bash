@@ -1,4 +1,4 @@
-# Zsh-Bash
+# Zsh Shell / Bash Shell Switcher
 Zsh / Bash Auto-Switcher Debian 12 /13
 
 # Zsh-Bash Switcher 🚀
