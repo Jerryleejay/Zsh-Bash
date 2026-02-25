@@ -30,4 +30,6 @@ To see a complete list of all currently active keybindings in your specific shel
 ### 📥 Installation
 
 Copy and paste this command into your terminal:
+```bash
 curl -sSL https://raw.githubusercontent.com/TerryClaiborne/Zsh-Bash/main/install.sh | sudo bash
+```
