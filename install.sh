@@ -28,7 +28,7 @@ precmd() {
   print -rP "%F{red}%n %f- %F{white}%m %f[%F{blue}%1~%f]"
 }
 
-PROMPT='%F{cyan}%D{%a %b %d} %F{yellow}%t %F{green}? %f'
+PROMPT='%F{cyan}%D{%a %b %d} %F{yellow}%t %F{green}➤ %f'
 
 alias apt='sudo apt'
 
