@@ -16,6 +16,8 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
+Zsh Shell / Bash Shell Switcher - Debian 12 Debian 13
+
 # Check if script is run as root
 if [ "$EUID" -ne 0 ]; then 
   echo "Please run with sudo: sudo bash install.sh"
