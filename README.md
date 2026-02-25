@@ -9,4 +9,4 @@ Easily toggle between a custom Zsh setup and standard Bash.
 Copy and paste this command into your terminal:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com | sudo bash
+curl -sSL https://raw.githubusercontent.com/Jerryleejay/Zsh-Bash/main/install.sh | sudo bash
