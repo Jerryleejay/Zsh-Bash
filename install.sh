@@ -1,11 +1,11 @@
 #!/bin/bash
 #
 # Copyright (C) 2026 Terry L. Claiborne, KC3KMV
-# Enhanced & safeguarded version 2026
+# Enhanced & fixed version 2026
 #
-# Perfect Zsh ↔ Bash toggle for Debian 12 / 13
-#   z-on  → enable nice Zsh (plugins + settings appended non-destructively)
-#   z-off → remove Zsh additions only (preserves your configs)
+# Zsh ↔ Bash toggle for Debian 12 / 13
+#   z-on  → enable nice Zsh (settings appended, NO right prompt by default)
+#   z-off → remove only the added Zsh sections
 #
 # Run once with: sudo bash this-file.sh
 
@@ -17,22 +17,18 @@ if [ "${EUID}" -ne 0 ]; then
     exit 1
 fi
 
-echo "Installing safer z-on / z-off toggle commands..."
+echo "Installing fixed z-on / z-off commands (no right-side prompt)..."
 
 mkdir -p /usr/local/bin
-# Ensure /usr/local/bin is likely in PATH (most Debian systems have it)
-if ! echo "$PATH" | grep -q "/usr/local/bin"; then
-    echo "Warning: /usr/local/bin not in PATH — add 'export PATH=/usr/local/bin:\$PATH' to your shell config if needed."
-fi
 
 # ────────────────────────────────────────────────
-# z-on: Enable nice Zsh
+# z-on: Enable nice Zsh (left prompt only)
 # ────────────────────────────────────────────────
 cat > /usr/local/bin/z-on << 'INNER'
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "Enabling nice Zsh setup..."
+echo "Enabling nice Zsh setup (left prompt only)..."
 
 # Install missing packages quietly
 if ! dpkg-query -W -f='${Status}' zsh zsh-syntax-highlighting zsh-autosuggestions 2>/dev/null | grep -Eq "ok installed"; then
@@ -44,7 +40,7 @@ fi
 # Backup .zshrc
 [ -f ~/.zshrc ] && cp ~/.zshrc ~/.zshrc.bak."$(date +%Y%m%d-%H%M%S)"
 
-# Append settings only if not already present
+# Append settings only if the block doesn't exist yet
 if ! grep -q "=== Zsh nice settings added by z-on ===" ~/.zshrc 2>/dev/null; then
     cat >> ~/.zshrc << 'ZSHRC'
 
@@ -62,13 +58,18 @@ setopt AUTO_CD EXTENDED_GLOB INTERACTIVE_COMMENTS
 unsetopt NOMATCH
 
 # Prompt ────────────────────────────────────────
-PROMPT='%F{cyan}%D{%a %b %d} %F{yellow}%T %F{green}➤ %f'
-RPROMPT='%F{red}%n%f@%F{white}%m%f %F{blue}%1~%f'
+# Clean left prompt only (no right-side clutter)
+PROMPT='%F{cyan}%D{%a %b %d} %F{yellow}%T %F{green}➤ %f '
+
+# If you ever want a subtle right prompt, uncomment and customize:
+# RPROMPT='%F{8}%n@%m %1~%f'          # dim gray user@host dir on right
+# or
+# setopt TRANSIENT_RPROMPT             # hide right prompt while typing
 
 # Aliases & helpers ─────────────────────────────
 alias apt='sudo apt'
 
-# Aggressive full system update (use with caution!)
+# Aggressive full system update (uncomment if you want it)
 # update-system() {
 #     sudo apt update && sudo apt full-upgrade -y && sudo apt autoremove --purge -y && sudo apt clean
 # }
@@ -81,7 +82,7 @@ zstyle ':completion:*' matcher-list 'm:{a-z}={A-Z}'
 [ -f /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh ] && source /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh
 [ -f /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ] && source /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
 
-# Smart up/down arrows (history search from cursor position)
+# Smart up/down arrows ──────────────────────────
 autoload -Uz up-line-or-beginning-search down-line-or-beginning-search
 zle -N up-line-or-beginning-search
 zle -N down-line-or-beginning-search
@@ -91,70 +92,70 @@ bindkey "^[[B" down-line-or-beginning-search
 # === End of z-on nice settings ===
 ZSHRC
 
-    echo "→ Appended nice Zsh settings to ~/.zshrc (your existing config is preserved)"
+    echo "→ Appended nice Zsh settings to ~/.zshrc (your existing config preserved)"
+    echo "→ Right prompt disabled by default — clean left side only"
 else
-    echo "→ Nice Zsh settings already present in ~/.zshrc — skipping"
+    echo "→ Nice Zsh settings already present — skipping append"
 fi
 
-# Change default shell (logout/login required for full effect)
+# Change default shell (logout/login required)
 if chsh -s "$(command -v zsh)" 2>/dev/null; then
-    echo "→ Default shell changed to zsh (logout & login to apply)"
+    echo "→ Default shell set to zsh (logout & login to apply)"
 else
-    echo "→ Could not change shell automatically. Run manually:"
+    echo "→ Could not change shell. Run manually:"
     echo "  chsh -s \$(command -v zsh)"
 fi
 
 echo ""
-echo "Zsh is ready!"
-echo "• Open a new terminal or run: source ~/.zshrc"
-echo "• For permanent zsh default: logout/login after chsh"
-echo "• To switch back later: just type 'z-off'"
+echo "Zsh ready!"
+echo "• Run 'source ~/.zshrc' or open new terminal"
+echo "• To go back: type 'z-off'"
 exec zsh -l
 INNER
 
 # ────────────────────────────────────────────────
-# z-off: Remove Zsh additions only
+# z-off: Remove only added sections
 # ────────────────────────────────────────────────
 cat > /usr/local/bin/z-off << 'INNER'
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "Disabling Zsh additions..."
+echo "Removing Zsh additions..."
 
-# Backup .zshrc and .bashrc before changes
+# Backup before changes
 [ -f ~/.zshrc ] && cp ~/.zshrc ~/.zshrc.bak."$(date +%Y%m%d-%H%M%S)"
 [ -f ~/.bashrc ] && cp ~/.bashrc ~/.bashrc.bak."$(date +%Y%m%d-%H%M%S)"
 
-# Remove z-on appended block from .zshrc
+# Remove the entire added block from .zshrc
 sed -i '/=== Zsh nice settings added by z-on ===/,/=== End of z-on nice settings ===/d' ~/.zshrc 2>/dev/null || true
 
-# Remove any stray old auto-switch lines from .bashrc (if present from older version)
+# Clean up any stray old auto-switch lines (from very old versions)
 sed -i '/# Auto-switch to Zsh (added by z-on)/,/zsh -l/d' ~/.bashrc 2>/dev/null || true
 
-# Change default shell back to bash
+# Switch shell back to bash
 if chsh -s "$(command -v bash)" 2>/dev/null; then
-    echo "→ Default shell changed back to bash (logout & login to apply)"
+    echo "→ Default shell set back to bash (logout & login to apply)"
 else
-    echo "→ Could not change shell automatically. Run manually:"
+    echo "→ Could not change shell. Run manually:"
     echo "  chsh -s \$(command -v bash)"
 fi
 
 echo ""
 echo "Bash restored (only toggle additions removed)."
-echo "• Your custom .zshrc / .bashrc changes are preserved."
-echo "• Open a new terminal or run: exec bash -l"
+echo "• Your other customizations preserved."
+echo "• Run 'exec bash -l' or open new terminal"
 INNER
 
 chmod +x /usr/local/bin/z-on /usr/local/bin/z-off
 
 echo ""
-echo "Perfect toggle installed successfully!"
+echo "Fixed toggle installed! No more right-side prompt clutter."
 echo ""
-echo "Usage:"
-echo "  z-on      → Append nice Zsh + plugins (non-destructive)"
-echo "  z-off     → Remove only the z-on additions"
+echo "Commands:"
+echo "  z-on      → nice Zsh (left prompt only)"
+echo "  z-off     → remove additions, back to normal"
 echo ""
-echo "Permanent default shell:"
+echo "Permanent shell change:"
 echo "  chsh -s /bin/zsh    (or /bin/bash) — then logout/login"
 echo ""
-echo "Enjoy your clean, toggleable setup! 🚀"
+echo "Enjoy the cleaner look! 🚀"
