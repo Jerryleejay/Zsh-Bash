@@ -1,133 +1,107 @@
 #!/bin/bash
 #
 # Copyright (C) 2026 Terry L. Claiborne, KC3KMV
-# Final version – restored prompt style with one space after arrow
 #
-# Zsh ↔ Bash toggle for Debian 12 / 13 / Raspberry Pi OS
-#   z-on  → enable nice Zsh (restored prompt style)
-#   z-off → remove additions + switch to bash
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# Zsh Shell / Bash Shell Switcher - Debian 12 Debian 13
+# Easily toggle between a custom Zsh setup and standard Bash.
 
-set -euo pipefail
-
-if [ "${EUID}" -ne 0 ]; then
-    echo "Error: Please run with sudo"
-    echo "  Example: sudo bash ${0##*/}"
-    exit 1
+# Check if script is run as root
+if [ "$EUID" -ne 0 ]; then 
+  echo "Please run with sudo: sudo bash install.sh"
+  exit
 fi
 
-mkdir -p /usr/local/bin
+echo "Installing z-on and z-off scripts..."
 
 # ────────────────────────────────────────────────
-# z-on
+# 1. Create the z-on script
 # ────────────────────────────────────────────────
-cat > /usr/local/bin/z-on << 'INNER'
-#!/usr/bin/env bash
-set -euo pipefail
+cat << 'EOF' > /usr/local/bin/z-on
+#!/bin/bash
+sudo apt update
+sudo apt install -y zsh zsh-syntax-highlighting zsh-autosuggestions
+chsh -s $(which zsh)
 
-echo "Enabling nice Zsh setup (left prompt only)..."
-
-if ! dpkg-query -W -f='${Status}' zsh zsh-syntax-highlighting zsh-autosuggestions 2>/dev/null | grep -Eq "ok installed"; then
-    echo "Installing zsh + plugins..."
-    DEBIAN_FRONTEND=noninteractive apt update -qq
-    DEBIAN_FRONTEND=noninteractive apt install -yqq zsh zsh-syntax-highlighting zsh-autosuggestions
-fi
-
-[ -f "${HOME}/.zshrc" ] && cp "${HOME}/.zshrc" "${HOME}/.zshrc.bak.$(date +%Y%m%d-%H%M%S)"
-
-if ! grep -q "=== Zsh nice settings added by z-on ===" "${HOME}/.zshrc" 2>/dev/null; then
-    cat >> "${HOME}/.zshrc" << 'ZSHRC'
-
-# === Zsh nice settings added by z-on ===
-#     (remove this whole block with z-off if desired)
-
-# History ───────────────────────────────────────
+cat << 'ZSHRC' > ~/.zshrc
 HISTFILE=~/.zsh_history
 HISTSIZE=50000
 SAVEHIST=50000
-setopt APPEND_HISTORY SHARE_HISTORY HIST_IGNORE_ALL_DUPS HIST_IGNORE_SPACE HIST_FIND_NO_DUPS
-
-# Shell options ─────────────────────────────────
-setopt AUTO_CD EXTENDED_GLOB INTERACTIVE_COMMENTS
+setopt APPEND_HISTORY SHARE_HISTORY HIST_IGNORE_ALL_DUPS HIST_IGNORE_SPACE
+setopt AUTO_CD EXTENDED_GLOB
+setopt interactive_comments
 unsetopt NOMATCH
 
-# Prompt ────────────────────────────────────────
-# Restored style: root - hostname [dir] date time ➤ [cursor here after one space]
-PROMPT='%F{red}root - %m%f [%1~] %F{cyan}%D{%a %b %d} %F{yellow}%T %F{green}➤ %f'
+precmd() {
+  print -rP "%F{red}%n %f- %F{white}%m %f[%F{blue}%1~%f]"
+}
 
-# If you ever want a subtle right prompt, uncomment and customize:
-# RPROMPT='%F{8}%n@%m %1~%f'          # dim gray user@host dir on right
-# or
-# setopt TRANSIENT_RPROMPT             # hide right prompt while typing
+PROMPT='%F{cyan}%D{%a %b %d} %F{yellow}%t %F{green}➤ %f'
 
-# Aliases & helpers ─────────────────────────────
 alias apt='sudo apt'
 
-# Completions ───────────────────────────────────
+update-system() {
+    sudo apt update && sudo apt full-upgrade -y && sudo apt autoremove --purge -y && sudo apt clean
+}
+
 autoload -Uz compinit && compinit
 zstyle ':completion:*' matcher-list 'm:{a-z}={A-Z}'
 
-# Plugins ───────────────────────────────────────
-[ -f /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh ] && source /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh
-[ -f /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ] && source /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+[[ -f /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh ]] && \
+  source /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh
+[[ -f /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]] && \
+  source /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
 
-# Smart up/down arrows ──────────────────────────
-autoload -Uz up-line-or-beginning-search down-line-or-beginning-search
+autoload -U up-line-or-beginning-search down-line-or-beginning-search
 zle -N up-line-or-beginning-search
 zle -N down-line-or-beginning-search
 bindkey "^[[A" up-line-or-beginning-search
 bindkey "^[[B" down-line-or-beginning-search
-
-# === End of z-on nice settings ===
 ZSHRC
 
-    echo "→ Appended nice Zsh settings to ~/.zshrc"
-else
-    echo "→ Nice Zsh settings already present — skipping append"
+if ! grep -q "exec zsh" ~/.bashrc 2>/dev/null; then
+  cat << 'FALLBACK' >> ~/.bashrc
+if [[ -t 1 && -x $(command -v zsh) ]]; then
+  exec zsh -l
+fi
+FALLBACK
 fi
 
-if chsh -s "$(command -v zsh)" 2>/dev/null; then
-    echo "→ Default shell set to zsh"
-else
-    echo "→ Could not change shell. Run manually: chsh -s \$(command -v zsh)"
+if [ -x "$(command -v zsh)" ]; then
+    exec zsh -l
 fi
-
-echo ""
-echo "Zsh ready!"
-echo "• Run 'source ~/.zshrc' or open new terminal"
-echo "• To go back: type 'z-off'"
-exec zsh -l
-INNER
+EOF
 
 # ────────────────────────────────────────────────
-# z-off
+# 2. Create the z-off script
 # ────────────────────────────────────────────────
-cat > /usr/local/bin/z-off << 'INNER'
-#!/usr/bin/env bash
-set -euo pipefail
+cat << 'EOF' > /usr/local/bin/z-off
+#!/bin/bash
+TARGET_HOME="$HOME"
+TARGET_USER="$USER"
 
-echo "Removing Zsh additions..."
+cp /etc/skel/.bashrc "$TARGET_HOME/.bashrc"
 
-[ -f "${HOME}/.zshrc" ] && cp "${HOME}/.zshrc" "${HOME}/.zshrc.bak.$(date +%Y%m%d-%H%M%S)"
-[ -f "${HOME}/.bashrc" ] && cp "${HOME}/.bashrc" "${HOME}/.bashrc.bak.$(date +%Y%m%d-%H%M%S)"
+sed -i '/exec zsh/d' "$TARGET_HOME/.bashrc"
+sed -i '/zsh -l/d' "$TARGET_HOME/.bashrc"
 
-sed -i '/=== Zsh nice settings added by z-on ===/,/=== End of z-on nice settings ===/d' "${HOME}/.zshrc" 2>/dev/null || true
-sed -i '/exec.*zsh/d' "${HOME}/.bashrc" 2>/dev/null || true
+echo "PS1='\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\\\$\[\033[00m\] '" >> "$TARGET_HOME/.bashrc"
 
-if chsh -s "$(command -v bash)" 2>/dev/null; then
-    echo "→ Default shell set back to bash"
-else
-    echo "→ Could not change shell. Run manually: chsh -s \$(command -v bash)"
-fi
+echo "alias apt='sudo apt'" >> "$TARGET_HOME/.bashrc"
 
-echo ""
-echo "Bash restored (only toggle additions removed)."
-echo "• Your other customizations preserved."
+sudo chsh -s $(which bash) "$TARGET_USER"
 
-echo ""
-echo "Switching this terminal session to bash now..."
-sleep 1.2
+exec bash -l
+EOF
 
-exec /bin/bash -l
-INNER
-
+# 3. Set executable permissions
 chmod +x /usr/local/bin/z-on /usr/local/bin/z-off
+
+echo "-------------------------------------------"
+echo "SUCCESS: Installation Complete!"
+echo "Commands available: z-on, z-off"
+echo "-------------------------------------------"
