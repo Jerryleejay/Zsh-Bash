@@ -41,10 +41,7 @@ Beyond Up/Down arrows for history:
 - `Ctrl + C` — interrupt/kill current process  
 - `Ctrl + Z` — suspend current process to background  
 
-See all active bindings:  
-```bash
-bindkey
-
+See all active bindings: bindkey
 ### 📥 Installation
 
 Copy and paste this command into your terminal:
