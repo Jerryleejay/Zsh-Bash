@@ -1,47 +1,30 @@
 #!/bin/bash
 #
-# zsh-bash-toggle.sh
-# =============================================================================
-# Zsh ↔ Bash toggle script for Debian / Raspberry Pi OS
+# Copyright (C) 2026 Terry L. Claiborne, KC3KMV
+# Final working version – February 2026
 #
-#   z-on   → enable nice Zsh (clean left prompt only)
-#   z-off  → remove added Zsh sections + switch current session to bash
+# Zsh ↔ Bash toggle for Debian 12 / 13 / Raspberry Pi OS
+#   z-on  → enable nice Zsh (left prompt only)
+#   z-off → remove only the added Zsh sections + auto-switch current session to bash
 #
-# Features:
-# - Clean prompt: Thu Feb 26 11:45 ➤ 
-# - Backups use ${HOME} (works correctly as root)
-# - Suppresses Raspberry Pi rfkill/Wi-Fi blocked message during switch
-#
-# Author:     Terry L. Claiborne, KC3KMV
-# Copyright:  (C) 2026 Terry L. Claiborne, KC3KMV
-# Version:    Final fixed – February 2026
-#
-# Installation:
-#   sudo bash zsh-bash-toggle.sh
-#
-# Usage:
-#   z-on    # switch to Zsh
-#   z-off   # switch back to Bash (in current session)
-# =============================================================================
+# Run once with: sudo bash this-file.sh
 
 set -euo pipefail
 
 if [ "${EUID}" -ne 0 ]; then
-    echo "Error: This script must be run with sudo."
+    echo "Error: Please run with sudo"
     echo "  Example: sudo bash ${0##*/}"
     exit 1
 fi
 
-echo "Installing / updating z-on and z-off commands..."
-echo "   → Clean left prompt: Thu Feb 26 11:45 ➤  (one space after arrow)"
-echo ""
+echo "Installing fixed z-on / z-off commands..."
 
-mkdir -p /usr/local/bin || { echo "Failed to create /usr/local/bin"; exit 1; }
+mkdir -p /usr/local/bin
 
-# =============================================================================
-# z-on – Enable nice Zsh
-# =============================================================================
-cat > /usr/local/bin/z-on << 'END_ZON'
+# ────────────────────────────────────────────────
+# z-on: Enable nice Zsh (left prompt only)
+# ────────────────────────────────────────────────
+cat > /usr/local/bin/z-on << 'INNER'
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -63,7 +46,7 @@ if [ -f "${HOME}/.zshrc" ]; then
     }
 fi
 
-# Append settings only if block doesn't exist
+# Append settings only if the block doesn't exist yet
 if ! grep -q "=== Zsh nice settings added by z-on ===" "${HOME}/.zshrc" 2>/dev/null; then
     cat >> "${HOME}/.zshrc" << 'ZSHRC'
 
@@ -132,12 +115,12 @@ echo "Zsh ready!"
 echo "• Run 'source ~/.zshrc' or open new terminal"
 echo "• To go back: type 'z-off'"
 exec zsh -l
-END_ZON
+INNER
 
-# =============================================================================
-# z-off – Remove additions and switch to bash (with rfkill suppression)
-# =============================================================================
-cat > /usr/local/bin/z-off << 'END_ZOFF'
+# ────────────────────────────────────────────────
+# z-off: Remove added sections + auto-switch to bash
+# ────────────────────────────────────────────────
+cat > /usr/local/bin/z-off << 'INNER'
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -167,18 +150,10 @@ echo "• Your other customizations preserved."
 echo ""
 echo "Switching this terminal session to bash now..."
 sleep 1.2
-# Suppress Raspberry Pi rfkill / Wi-Fi blocked message
+# Suppress rfkill / Wi-Fi blocked message on Raspberry Pi
 exec bash -l 2>/dev/null
-END_ZOFF
+INNER
 
 chmod +x /usr/local/bin/z-on /usr/local/bin/z-off
 
-echo ""
-echo "Installation complete!"
-echo "Commands:"
-echo "  z-on      → nice Zsh (left prompt only)"
-echo "  z-off     → remove additions + switch to bash now (no rfkill spam)"
-echo ""
-echo "Note: If you see a syntax error in /root/.bashrc after switching,"
-echo "      edit /root/.bashrc and fix the if/fi mismatch around line 117."
 echo ""
