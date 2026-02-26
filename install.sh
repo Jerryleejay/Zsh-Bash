@@ -1,10 +1,10 @@
 #!/bin/bash
 #
 # Copyright (C) 2026 Terry L. Claiborne, KC3KMV
-# Enhanced & fixed version 2026
+# Final robust version – February 2026
 #
-# Zsh ↔ Bash toggle for Debian 12 / 13
-#   z-on  → enable nice Zsh (settings appended, NO right prompt by default)
+# Zsh ↔ Bash toggle for Debian 12 / 13 / Raspberry Pi OS
+#   z-on  → enable nice Zsh (clean left prompt only)
 #   z-off → remove only the added Zsh sections + auto-switch current session to bash
 #
 # Run once with: sudo bash this-file.sh
@@ -17,12 +17,12 @@ if [ "${EUID}" -ne 0 ]; then
     exit 1
 fi
 
-echo "Installing fixed z-on / z-off commands (no right-side prompt)..."
+echo "Installing fixed z-on / z-off commands..."
 
 mkdir -p /usr/local/bin
 
 # ────────────────────────────────────────────────
-# z-on: Enable nice Zsh (left prompt only)
+# z-on
 # ────────────────────────────────────────────────
 cat > /usr/local/bin/z-on << 'INNER'
 #!/usr/bin/env bash
@@ -69,11 +69,6 @@ PROMPT='%F{cyan}%D{%a %b %d} %F{yellow}%T %F{green}➤ %f'
 # Aliases & helpers ─────────────────────────────
 alias apt='sudo apt'
 
-# Aggressive full system update (uncomment if you want it)
-# update-system() {
-#     sudo apt update && sudo apt full-upgrade -y && sudo apt autoremove --purge -y && sudo apt clean
-# }
-
 # Completions ───────────────────────────────────
 autoload -Uz compinit && compinit
 zstyle ':completion:*' matcher-list 'm:{a-z}={A-Z}'
@@ -98,12 +93,11 @@ else
     echo "→ Nice Zsh settings already present — skipping append"
 fi
 
-# Change default shell (logout/login required for new terminals)
+# Change default shell
 if chsh -s "$(command -v zsh)" 2>/dev/null; then
     echo "→ Default shell set to zsh (logout & login or new terminal to apply)"
 else
-    echo "→ Could not change shell. Run manually:"
-    echo "  chsh -s \$(command -v zsh)"
+    echo "→ Could not change shell. Run manually: chsh -s \$(command -v zsh)"
 fi
 
 echo ""
@@ -114,11 +108,18 @@ exec zsh -l
 INNER
 
 # ────────────────────────────────────────────────
-# z-off: Remove added sections + auto-switch to bash in current session
+# z-off – robust version
 # ────────────────────────────────────────────────
 cat > /usr/local/bin/z-off << 'INNER'
 #!/usr/bin/env bash
 set -euo pipefail
+
+# Prevent accidental sourcing in Zsh
+if [ -n "$ZSH_VERSION" ]; then
+    echo "Error: Do NOT source z-off (do not use 'source z-off' or '. z-off')"
+    echo "Just type: z-off"
+    return 1 2>/dev/null || exit 1
+fi
 
 echo "Removing Zsh additions..."
 
@@ -126,38 +127,40 @@ echo "Removing Zsh additions..."
 [ -f "${HOME}/.zshrc" ] && cp "${HOME}/.zshrc" "${HOME}/.zshrc.bak.$(date +%Y%m%d-%H%M%S)"
 [ -f "${HOME}/.bashrc" ] && cp "${HOME}/.bashrc" "${HOME}/.bashrc.bak.$(date +%Y%m%d-%H%M%S)"
 
-# Remove the entire added block from .zshrc
+# Remove the entire added block
 sed -i '/=== Zsh nice settings added by z-on ===/,/=== End of z-on nice settings ===/d' "${HOME}/.zshrc" 2>/dev/null || true
 
-# Clean up any stray old auto-switch lines (from very old versions)
-sed -i '/# Auto-switch to Zsh/,/zsh -l/d' "${HOME}/.bashrc" 2>/dev/null || true
+# Clean up stray old lines
 sed -i '/exec.*zsh/d' "${HOME}/.bashrc" 2>/dev/null || true
 
 # Switch default login shell back to bash
 if chsh -s "$(command -v bash)" 2>/dev/null; then
     echo "→ Default shell set back to bash (new terminals will use bash)"
 else
-    echo "→ Could not change shell. Run manually:"
-    echo "  chsh -s \$(command -v bash)"
+    echo "→ Could not change shell. Run manually: chsh -s \$(command -v bash)"
 fi
 
 echo ""
 echo "Bash restored (only toggle additions removed)."
 echo "• Your other customizations preserved."
 
-# Final step: replace current shell with bash (so prompt changes immediately)
 echo ""
 echo "Switching this terminal session to bash now..."
-sleep 1.2   # tiny pause so user can read the message
-exec bash -l 2>/dev/null
+sleep 1.2
+
+# Robust switch - full path + fallback message if it fails
+if ! exec /bin/bash -l 2>/dev/null; then
+    echo ""
+    echo "Failed to switch to bash."
+    echo "This is usually caused by a syntax error in /root/.bashrc (line ~117)."
+    echo "Fix it with: nano /root/.bashrc"
+    echo "Then try z-off again."
+    exit 1
+fi
 INNER
 
 chmod +x /usr/local/bin/z-on /usr/local/bin/z-off
 
 echo ""
-echo "Fixed toggle installed! No more right-side prompt clutter."
-echo ""
-echo "Commands:"
-echo "  z-on      → nice Zsh (left prompt only)"
-echo "  z-off     → remove additions + auto-switch to bash in this session"
+echo "Fixed toggle installed!"
 echo ""
