@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # Copyright (C) 2026 Terry L. Claiborne, KC3KMV
-# Enhanced & fixed version 2026 by Grok
+# Enhanced & fixed version 2026
 #
 # Zsh ↔ Bash toggle for Debian 12 / 13
 #   z-on  → enable nice Zsh (settings appended, NO right prompt by default)
