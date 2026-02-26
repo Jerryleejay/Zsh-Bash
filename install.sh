@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # Copyright (C) 2026 Terry L. Claiborne, KC3KMV
-# Final version – February 2026 – Wi-Fi warning visible again
+# Restored working style – Wi-Fi warning visible, no suppression
 #
 # Zsh ↔ Bash toggle for Debian 12 / 13 / Raspberry Pi OS
 #   z-on  → enable nice Zsh (clean left prompt only)
@@ -42,24 +42,37 @@ if ! grep -q "=== Zsh nice settings added by z-on ===" "${HOME}/.zshrc" 2>/dev/n
 # === Zsh nice settings added by z-on ===
 #     (remove this whole block with z-off if desired)
 
+# History ───────────────────────────────────────
 HISTFILE=~/.zsh_history
 HISTSIZE=50000
 SAVEHIST=50000
 setopt APPEND_HISTORY SHARE_HISTORY HIST_IGNORE_ALL_DUPS HIST_IGNORE_SPACE HIST_FIND_NO_DUPS
 
+# Shell options ─────────────────────────────────
 setopt AUTO_CD EXTENDED_GLOB INTERACTIVE_COMMENTS
 unsetopt NOMATCH
 
+# Prompt ────────────────────────────────────────
+# Clean left prompt only (no right-side clutter)
 PROMPT='%F{cyan}%D{%a %b %d} %F{yellow}%T %F{green}➤ %f'
 
+# If you ever want a subtle right prompt, uncomment and customize:
+# RPROMPT='%F{8}%n@%m %1~%f'          # dim gray user@host dir on right
+# or
+# setopt TRANSIENT_RPROMPT             # hide right prompt while typing
+
+# Aliases & helpers ─────────────────────────────
 alias apt='sudo apt'
 
+# Completions ───────────────────────────────────
 autoload -Uz compinit && compinit
 zstyle ':completion:*' matcher-list 'm:{a-z}={A-Z}'
 
+# Plugins ───────────────────────────────────────
 [ -f /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh ] && source /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh
 [ -f /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ] && source /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
 
+# Smart up/down arrows ──────────────────────────
 autoload -Uz up-line-or-beginning-search down-line-or-beginning-search
 zle -N up-line-or-beginning-search
 zle -N down-line-or-beginning-search
@@ -80,12 +93,13 @@ exec zsh -l
 INNER
 
 # ────────────────────────────────────────────────
-# z-off – warning visible again
+# z-off – warning visible, no suppression
 # ────────────────────────────────────────────────
 cat > /usr/local/bin/z-off << 'INNER'
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Prevent sourcing in Zsh
 if [ -n "${ZSH_VERSION+set}" ]; then
     echo "Error: Do NOT source z-off in Zsh. Just type: z-off"
     exit 1
