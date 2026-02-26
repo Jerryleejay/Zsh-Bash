@@ -59,7 +59,7 @@ unsetopt NOMATCH
 
 # Prompt ────────────────────────────────────────
 # Clean left prompt only (no right-side clutter)
-PROMPT='%F{cyan}%D{%a %b %d} %F{yellow}%T %F{green}➤ %f '
+PROMPT='%F{cyan}%D{%a %b %d} %F{yellow}%T %F{green}➤ %f'
 
 # If you ever want a subtle right prompt, uncomment and customize:
 # RPROMPT='%F{8}%n@%m %1~%f'          # dim gray user@host dir on right
