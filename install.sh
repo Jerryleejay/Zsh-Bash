@@ -1,11 +1,11 @@
 #!/bin/bash
 #
 # Copyright (C) 2026 Terry L. Claiborne, KC3KMV
-# Enhanced & fixed version 2026
+# Enhanced & fixed version 2026 by Grok
 #
 # Zsh ↔ Bash toggle for Debian 12 / 13
 #   z-on  → enable nice Zsh (settings appended, NO right prompt by default)
-#   z-off → remove only the added Zsh sections
+#   z-off → remove only the added Zsh sections + auto-switch current session to bash
 #
 # Run once with: sudo bash this-file.sh
 
@@ -98,9 +98,9 @@ else
     echo "→ Nice Zsh settings already present — skipping append"
 fi
 
-# Change default shell (logout/login required)
+# Change default shell (logout/login required for new terminals)
 if chsh -s "$(command -v zsh)" 2>/dev/null; then
-    echo "→ Default shell set to zsh (logout & login to apply)"
+    echo "→ Default shell set to zsh (logout & login or new terminal to apply)"
 else
     echo "→ Could not change shell. Run manually:"
     echo "  chsh -s \$(command -v zsh)"
@@ -114,7 +114,7 @@ exec zsh -l
 INNER
 
 # ────────────────────────────────────────────────
-# z-off: Remove only added sections
+# z-off: Remove added sections + auto-switch to bash in current session
 # ────────────────────────────────────────────────
 cat > /usr/local/bin/z-off << 'INNER'
 #!/usr/bin/env bash
@@ -130,11 +130,12 @@ echo "Removing Zsh additions..."
 sed -i '/=== Zsh nice settings added by z-on ===/,/=== End of z-on nice settings ===/d' ~/.zshrc 2>/dev/null || true
 
 # Clean up any stray old auto-switch lines (from very old versions)
-sed -i '/# Auto-switch to Zsh (added by z-on)/,/zsh -l/d' ~/.bashrc 2>/dev/null || true
+sed -i '/# Auto-switch to Zsh/,/zsh -l/d' ~/.bashrc 2>/dev/null || true
+sed -i '/exec.*zsh/d' ~/.bashrc 2>/dev/null || true
 
-# Switch shell back to bash
+# Switch default login shell back to bash
 if chsh -s "$(command -v bash)" 2>/dev/null; then
-    echo "→ Default shell set back to bash (logout & login to apply)"
+    echo "→ Default shell set back to bash (new terminals will use bash)"
 else
     echo "→ Could not change shell. Run manually:"
     echo "  chsh -s \$(command -v bash)"
@@ -143,7 +144,12 @@ fi
 echo ""
 echo "Bash restored (only toggle additions removed)."
 echo "• Your other customizations preserved."
-echo "• Run 'exec bash -l' or open new terminal"
+
+# Final step: replace current shell with bash (so prompt changes immediately)
+echo ""
+echo "Switching this terminal session to bash now..."
+sleep 1.2   # tiny pause so user can read the message
+exec bash -l
 INNER
 
 chmod +x /usr/local/bin/z-on /usr/local/bin/z-off
@@ -153,9 +159,8 @@ echo "Fixed toggle installed! No more right-side prompt clutter."
 echo ""
 echo "Commands:"
 echo "  z-on      → nice Zsh (left prompt only)"
-echo "  z-off     → remove additions, back to normal"
+echo "  z-off     → remove additions + auto-switch to bash in this session"
 echo ""
-echo "Permanent shell change:"
-echo "  chsh -s /bin/zsh    (or /bin/bash) — then logout/login"
+echo "Permanent shell change (affects new terminals):"
+echo "  chsh -s /bin/zsh    (or /bin/bash) — then logout/login or new terminal"
 echo ""
-echo "Enjoy the cleaner look! 🚀"
