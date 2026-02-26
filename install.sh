@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # Copyright (C) 2026 Terry L. Claiborne, KC3KMV
-# Final robust version – February 2026
+# Final robust & safe version – February 2026
 #
 # Zsh ↔ Bash toggle for Debian 12 / 13 / Raspberry Pi OS
 #   z-on  → enable nice Zsh (clean left prompt only)
@@ -30,17 +30,14 @@ set -euo pipefail
 
 echo "Enabling nice Zsh setup (left prompt only)..."
 
-# Install missing packages quietly
 if ! dpkg-query -W -f='${Status}' zsh zsh-syntax-highlighting zsh-autosuggestions 2>/dev/null | grep -Eq "ok installed"; then
     echo "Installing zsh + plugins..."
     DEBIAN_FRONTEND=noninteractive apt update -qq
     DEBIAN_FRONTEND=noninteractive apt install -yqq zsh zsh-syntax-highlighting zsh-autosuggestions
 fi
 
-# Backup .zshrc
 [ -f "${HOME}/.zshrc" ] && cp "${HOME}/.zshrc" "${HOME}/.zshrc.bak.$(date +%Y%m%d-%H%M%S)"
 
-# Append settings only if the block doesn't exist yet
 if ! grep -q "=== Zsh nice settings added by z-on ===" "${HOME}/.zshrc" 2>/dev/null; then
     cat >> "${HOME}/.zshrc" << 'ZSHRC'
 
@@ -87,18 +84,12 @@ bindkey "^[[B" down-line-or-beginning-search
 # === End of z-on nice settings ===
 ZSHRC
 
-    echo "→ Appended nice Zsh settings to ~/.zshrc (your existing config preserved)"
-    echo "→ Right prompt disabled by default — clean left side only"
+    echo "→ Appended nice Zsh settings to ~/.zshrc"
 else
     echo "→ Nice Zsh settings already present — skipping append"
 fi
 
-# Change default shell
-if chsh -s "$(command -v zsh)" 2>/dev/null; then
-    echo "→ Default shell set to zsh (logout & login or new terminal to apply)"
-else
-    echo "→ Could not change shell. Run manually: chsh -s \$(command -v zsh)"
-fi
+chsh -s "$(command -v zsh)" 2>/dev/null || true
 
 echo ""
 echo "Zsh ready!"
@@ -108,37 +99,27 @@ exec zsh -l
 INNER
 
 # ────────────────────────────────────────────────
-# z-off – robust version
+# z-off – safe & robust
 # ────────────────────────────────────────────────
 cat > /usr/local/bin/z-off << 'INNER'
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Prevent accidental sourcing in Zsh
-if [ -n "$ZSH_VERSION" ]; then
-    echo "Error: Do NOT source z-off (do not use 'source z-off' or '. z-off')"
-    echo "Just type: z-off"
-    return 1 2>/dev/null || exit 1
+# Safe check: only warn if run in Zsh (use ${var:-} to avoid unbound error)
+if [ -n "${ZSH_VERSION:-}" ]; then
+    echo "Error: Do NOT source z-off in Zsh. Just type: z-off"
+    exit 1
 fi
 
 echo "Removing Zsh additions..."
 
-# Backup before changes
 [ -f "${HOME}/.zshrc" ] && cp "${HOME}/.zshrc" "${HOME}/.zshrc.bak.$(date +%Y%m%d-%H%M%S)"
 [ -f "${HOME}/.bashrc" ] && cp "${HOME}/.bashrc" "${HOME}/.bashrc.bak.$(date +%Y%m%d-%H%M%S)"
 
-# Remove the entire added block
 sed -i '/=== Zsh nice settings added by z-on ===/,/=== End of z-on nice settings ===/d' "${HOME}/.zshrc" 2>/dev/null || true
-
-# Clean up stray old lines
 sed -i '/exec.*zsh/d' "${HOME}/.bashrc" 2>/dev/null || true
 
-# Switch default login shell back to bash
-if chsh -s "$(command -v bash)" 2>/dev/null; then
-    echo "→ Default shell set back to bash (new terminals will use bash)"
-else
-    echo "→ Could not change shell. Run manually: chsh -s \$(command -v bash)"
-fi
+chsh -s "$(command -v bash)" 2>/dev/null || true
 
 echo ""
 echo "Bash restored (only toggle additions removed)."
@@ -148,13 +129,13 @@ echo ""
 echo "Switching this terminal session to bash now..."
 sleep 1.2
 
-# Robust switch - full path + fallback message if it fails
+# Use full path + fallback message if exec fails
 if ! exec /bin/bash -l 2>/dev/null; then
     echo ""
     echo "Failed to switch to bash."
-    echo "This is usually caused by a syntax error in /root/.bashrc (line ~117)."
-    echo "Fix it with: nano /root/.bashrc"
-    echo "Then try z-off again."
+    echo "Likely cause: syntax error in /root/.bashrc (around line 117)."
+    echo "Edit it with: nano /root/.bashrc"
+    echo "Fix the if/fi mismatch, save, then try z-off again."
     exit 1
 fi
 INNER
