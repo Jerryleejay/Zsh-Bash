@@ -1,31 +1,49 @@
-# Zsh Shell / Bash Shell Switcher
-Zsh / Bash Auto-Switcher Debian 12 /13
+# Zsh ↔ Bash Toggle for Debian
 
-# Zsh-Bash Switcher 🚀
-Easily toggle between a custom Zsh setup and standard Bash in terminal z-on for Zsh z-off for Bash shell
+**Easily switch** between a clean, powerful **Zsh** setup and standard **Bash** on Debian 12 / 13.
 
-In the Zsh shell, beyond the Up and Down arrows for history navigation, there are several "power user" shortcuts (mostly based on Emacs keybindings) that let you manipulate text and navigate the command line much faster. 
+- Type `z-on` → get enhanced Zsh with syntax highlighting, autosuggestions, smart history, and a nice prompt  
+- Type `z-off` → instantly revert to stock Debian Bash  
 
-Essential Navigation & History
-Ctrl + R: Search backward through your history interactively.
-Ctrl + P / Ctrl + N: Move to the Previous or Next command in history (same as Up/Down arrows).
-Ctrl + A / Ctrl + E: Jump immediately to the Actual beginning or End of the line.
-Alt + F / Alt + B: Move the cursor Forward or Backward by one full word.
-Tab: Auto-complete commands, filenames, or paths. 
+No heavy frameworks, no bloat — just useful defaults.
 
-Editing & Deletion
-Ctrl + W: Delete the word immediately before the cursor.
-Ctrl + U: Delete the entire line (in Zsh).
-Ctrl + K: Delete (kill) everything from the cursor to the end of the line.
-Ctrl + Y: Paste ("yank") back the last text you deleted with Ctrl+W, Ctrl+U, or Ctrl+K.
-Ctrl + _: Undo the last change to the command line. 
+## Features
 
-Process & Management
-Ctrl + L: Clear the terminal screen while keeping your current command line intact.
-Ctrl + C: Interrupt and kill the currently running process.
-Ctrl + Z: Suspend the current process and move it to the background.
+- Lightweight Zsh configuration with:
+  - zsh-autosuggestions & zsh-syntax-highlighting
+  - Large shared history (50 000 entries, duplicates ignored)
+  - Smart ↑/↓ arrows (search from beginning of typed command)
+  - Modern colorful prompt (date/time + user@host/dir info)
+  - Handy `update-system` command for full upgrades
+- Safe & repeatable: backs up your `.zshrc`/`.bashrc`, skips redundant installs
+- Full Emacs-style keybindings for fast editing (see list below)
 
-To see a complete list of all currently active keybindings in your specific shell, you can run the command bindkey in terminal
+## Zsh Power Shortcuts
+
+Beyond Up/Down arrows for history:
+
+**Navigation & History**  
+- `Ctrl + R` — interactive backward history search  
+- `Ctrl + P` / `Ctrl + N` — previous/next command  
+- `Ctrl + A` / `Ctrl + E` — jump to beginning/end of line  
+- `Alt + F` / `Alt + B` — forward/backward one word  
+- `Tab` — auto-complete commands, files, paths  
+
+**Editing & Deletion**  
+- `Ctrl + W` — delete word before cursor  
+- `Ctrl + U` — delete entire line  
+- `Ctrl + K` — delete from cursor to end of line  
+- `Ctrl + Y` — yank (paste) last deleted text  
+- `Ctrl + _` — undo last change  
+
+**Process & Management**  
+- `Ctrl + L` — clear screen (keeps current command)  
+- `Ctrl + C` — interrupt/kill current process  
+- `Ctrl + Z` — suspend current process to background  
+
+See all active bindings:  
+```bash
+bindkey
 
 ### 📥 Installation
 
