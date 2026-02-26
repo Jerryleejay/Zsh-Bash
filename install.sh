@@ -4,7 +4,7 @@
 # Enhanced & fixed version 2026
 #
 # Zsh ↔ Bash toggle for Debian 12 / 13
-#   z-on  → enable nice Zsh (settings appended, NO right prompt by default)
+#   z-on  → enable nice Zsh (settings appended, NO right prompt, clean spacing)
 #   z-off → remove only the added Zsh sections + auto-switch current session to bash
 #
 # Run once with: sudo bash this-file.sh
@@ -17,18 +17,18 @@ if [ "${EUID}" -ne 0 ]; then
     exit 1
 fi
 
-echo "Installing fixed z-on / z-off commands (no right-side prompt)..."
+echo "Installing fixed z-on / z-off commands (clean left prompt, no extra space)..."
 
 mkdir -p /usr/local/bin
 
 # ────────────────────────────────────────────────
-# z-on: Enable nice Zsh (left prompt only)
+# z-on: Enable nice Zsh (left prompt only, tight spacing)
 # ────────────────────────────────────────────────
 cat > /usr/local/bin/z-on << 'INNER'
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "Enabling nice Zsh setup (left prompt only)..."
+echo "Enabling nice Zsh setup (clean left prompt, no extra space)..."
 
 # Install missing packages quietly
 if ! dpkg-query -W -f='${Status}' zsh zsh-syntax-highlighting zsh-autosuggestions 2>/dev/null | grep -Eq "ok installed"; then
@@ -58,8 +58,8 @@ setopt AUTO_CD EXTENDED_GLOB INTERACTIVE_COMMENTS
 unsetopt NOMATCH
 
 # Prompt ────────────────────────────────────────
-# Clean left prompt only (no right-side clutter)
-PROMPT='%F{cyan}%D{%a %b %d} %F{yellow}%T %F{green}➤ %f '
+# Clean left prompt: date time ➤ [cursor here after one space]
+PROMPT='%F{cyan}%D{%a %b %d} %F{yellow}%T %F{green}➤ %f'
 
 # If you ever want a subtle right prompt, uncomment and customize:
 # RPROMPT='%F{8}%n@%m %1~%f'          # dim gray user@host dir on right
@@ -93,7 +93,7 @@ bindkey "^[[B" down-line-or-beginning-search
 ZSHRC
 
     echo "→ Appended nice Zsh settings to ~/.zshrc (your existing config preserved)"
-    echo "→ Right prompt disabled by default — clean left side only"
+    echo "→ Prompt fixed: no extra space before/after ➤"
 else
     echo "→ Nice Zsh settings already present — skipping append"
 fi
@@ -155,10 +155,10 @@ INNER
 chmod +x /usr/local/bin/z-on /usr/local/bin/z-off
 
 echo ""
-echo "Fixed toggle installed! No more right-side prompt clutter."
+echo "Fixed toggle installed! Clean prompt: date time ➤ [cursor after one space]"
 echo ""
 echo "Commands:"
-echo "  z-on      → nice Zsh (left prompt only)"
+echo "  z-on      → nice Zsh (clean left prompt)"
 echo "  z-off     → remove additions + auto-switch to bash in this session"
 echo ""
 echo "Permanent shell change (affects new terminals):"
