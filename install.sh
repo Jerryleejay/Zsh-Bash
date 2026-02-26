@@ -1,10 +1,10 @@
 #!/bin/bash
 #
 # Copyright (C) 2026 Terry L. Claiborne, KC3KMV
-# Final working version – February 2026
+# Enhanced & fixed version 2026
 #
-# Zsh ↔ Bash toggle for Debian 12 / 13 / Raspberry Pi OS
-#   z-on  → enable nice Zsh (left prompt only)
+# Zsh ↔ Bash toggle for Debian 12 / 13
+#   z-on  → enable nice Zsh (settings appended, NO right prompt by default)
 #   z-off → remove only the added Zsh sections + auto-switch current session to bash
 #
 # Run once with: sudo bash this-file.sh
@@ -17,7 +17,7 @@ if [ "${EUID}" -ne 0 ]; then
     exit 1
 fi
 
-echo "Installing fixed z-on / z-off commands..."
+echo "Installing fixed z-on / z-off commands (no right-side prompt)..."
 
 mkdir -p /usr/local/bin
 
@@ -38,13 +38,7 @@ if ! dpkg-query -W -f='${Status}' zsh zsh-syntax-highlighting zsh-autosuggestion
 fi
 
 # Backup .zshrc
-if [ -f "${HOME}/.zshrc" ]; then
-    backup_file="${HOME}/.zshrc.bak.$(date +%Y%m%d-%H%M%S)"
-    cp "${HOME}/.zshrc" "${backup_file}" || {
-        echo "Error: Could not create backup of .zshrc"
-        exit 1
-    }
-fi
+[ -f "${HOME}/.zshrc" ] && cp "${HOME}/.zshrc" "${HOME}/.zshrc.bak.$(date +%Y%m%d-%H%M%S)"
 
 # Append settings only if the block doesn't exist yet
 if ! grep -q "=== Zsh nice settings added by z-on ===" "${HOME}/.zshrc" 2>/dev/null; then
@@ -98,16 +92,18 @@ bindkey "^[[B" down-line-or-beginning-search
 # === End of z-on nice settings ===
 ZSHRC
 
-    echo "→ Appended nice Zsh settings to ~/.zshrc"
+    echo "→ Appended nice Zsh settings to ~/.zshrc (your existing config preserved)"
+    echo "→ Right prompt disabled by default — clean left side only"
 else
     echo "→ Nice Zsh settings already present — skipping append"
 fi
 
-# Change default shell
+# Change default shell (logout/login required for new terminals)
 if chsh -s "$(command -v zsh)" 2>/dev/null; then
     echo "→ Default shell set to zsh (logout & login or new terminal to apply)"
 else
-    echo "→ Could not change shell. Run manually: chsh -s \$(command -v zsh)"
+    echo "→ Could not change shell. Run manually:"
+    echo "  chsh -s \$(command -v zsh)"
 fi
 
 echo ""
@@ -118,7 +114,7 @@ exec zsh -l
 INNER
 
 # ────────────────────────────────────────────────
-# z-off: Remove added sections + auto-switch to bash
+# z-off: Remove added sections + auto-switch to bash in current session
 # ────────────────────────────────────────────────
 cat > /usr/local/bin/z-off << 'INNER'
 #!/usr/bin/env bash
@@ -130,30 +126,38 @@ echo "Removing Zsh additions..."
 [ -f "${HOME}/.zshrc" ] && cp "${HOME}/.zshrc" "${HOME}/.zshrc.bak.$(date +%Y%m%d-%H%M%S)"
 [ -f "${HOME}/.bashrc" ] && cp "${HOME}/.bashrc" "${HOME}/.bashrc.bak.$(date +%Y%m%d-%H%M%S)"
 
-# Remove the entire added block
+# Remove the entire added block from .zshrc
 sed -i '/=== Zsh nice settings added by z-on ===/,/=== End of z-on nice settings ===/d' "${HOME}/.zshrc" 2>/dev/null || true
 
-# Clean up stray old lines
+# Clean up any stray old auto-switch lines (from very old versions)
+sed -i '/# Auto-switch to Zsh/,/zsh -l/d' "${HOME}/.bashrc" 2>/dev/null || true
 sed -i '/exec.*zsh/d' "${HOME}/.bashrc" 2>/dev/null || true
 
-# Switch default shell back to bash
+# Switch default login shell back to bash
 if chsh -s "$(command -v bash)" 2>/dev/null; then
-    echo "→ Default shell set back to bash"
+    echo "→ Default shell set back to bash (new terminals will use bash)"
 else
-    echo "→ Could not change shell. Run manually: chsh -s \$(command -v bash)"
+    echo "→ Could not change shell. Run manually:"
+    echo "  chsh -s \$(command -v bash)"
 fi
 
 echo ""
 echo "Bash restored (only toggle additions removed)."
 echo "• Your other customizations preserved."
 
+# Final step: replace current shell with bash (so prompt changes immediately)
 echo ""
 echo "Switching this terminal session to bash now..."
-sleep 1.2
-# Suppress rfkill / Wi-Fi blocked message on Raspberry Pi
+sleep 1.2   # tiny pause so user can read the message
 exec bash -l 2>/dev/null
 INNER
 
 chmod +x /usr/local/bin/z-on /usr/local/bin/z-off
 
+echo ""
+echo "Fixed toggle installed! No more right-side prompt clutter."
+echo ""
+echo "Commands:"
+echo "  z-on      → nice Zsh (left prompt only)"
+echo "  z-off     → remove additions + auto-switch to bash in this session"
 echo ""
