@@ -1,154 +1,44 @@
-#!/bin/bash
-set -euo pipefail
+Zsh ↔ Bash Toggle for Debian
+Easily switch between a clean, powerful Zsh setup and standard Bash on Debian 12 / 13.
 
-#
-# Copyright (C) 2026 Terry L. Claiborne, KC3KMV
-#
-# Zsh Shell / Bash Shell Switcher - Debian 12 Debian 13
-# Universal version - works for any user and root
+Type z-on → get enhanced Zsh with syntax highlighting, autosuggestions, smart history, and a nice prompt
+Type z-off → instantly revert to stock Debian Bash
+No heavy frameworks, no bloat — just useful defaults.
 
-# ────────────────────────────────────────────────
-# UNIVERSAL USER DETECTION
-# ────────────────────────────────────────────────
+Features
+Lightweight Zsh configuration with:
+zsh-autosuggestions & zsh-syntax-highlighting
+Large shared history (50 000 entries, duplicates ignored)
+Smart ↑/↓ arrows (search from beginning of typed command)
+Modern colorful prompt (date/time + user@host/dir info)
+Handy update-system command for full upgrades
+Safe & repeatable: backs up your .zshrc/.bashrc, skips redundant installs
+Full Emacs-style keybindings for fast editing (see list below)
+Zsh Power Shortcuts
+Beyond Up/Down arrows for history:
 
-if [ "$EUID" -eq 0 ]; then
-    if [ -n "${SUDO_USER:-}" ]; then
-        REAL_USER="$SUDO_USER"
-        REAL_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
-    else
-        REAL_USER="root"
-        REAL_HOME="/root"
-    fi
-else
-    REAL_USER="$USER"
-    REAL_HOME="$HOME"
-fi
+Navigation & History
 
-echo "Detected user: $REAL_USER"
-echo "Home directory: $REAL_HOME"
+Ctrl + R — interactive backward history search
+Ctrl + P / Ctrl + N — previous/next command
+Ctrl + A / Ctrl + E — jump to beginning/end of line
+Alt + F / Alt + B — forward/backward one word
+Tab — auto-complete commands, files, paths
+Editing & Deletion
 
-if [ "$EUID" -ne 0 ]; then
-    echo -e "\033[0;31m[ERROR]\033[0m Installation requires root. Please run: sudo bash $0"
-    exit 1
-fi
+Ctrl + W — delete word before cursor
+Ctrl + U — delete entire line
+Ctrl + K — delete from cursor to end of line
+Ctrl + Y — yank (paste) last deleted text
+Ctrl + _ — undo last change
+Process & Management
 
-echo "Installing z-on and z-off to /usr/local/bin..."
+Ctrl + L — clear screen (keeps current command)
+Ctrl + C — interrupt/kill current process
+Ctrl + Z — suspend current process to background
+See all active bindings: bindkey
 
-# ────────────────────────────────────────────────
-# Z-ON SCRIPT
-# ────────────────────────────────────────────────
-cat << 'ON_EOF' > /usr/local/bin/z-on
-#!/bin/bash
-set -euo pipefail
+📥 Installation
+Copy and paste this command into your terminal:
 
-if [ "$EUID" -eq 0 ]; then
-    if [ -n "${SUDO_USER:-}" ]; then
-        REAL_USER="$SUDO_USER"
-        REAL_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
-    else
-        REAL_USER="root"
-        REAL_HOME="/root"
-    fi
-else
-    REAL_USER="$USER"
-    REAL_HOME="$HOME"
-fi
-
-if [ "$EUID" -ne 0 ]; then
-    echo -e "\033[0;31m[ERROR]\033[0m z-on requires sudo. Please run: sudo z-on"
-    exit 1
-fi
-
-echo "Updating packages..."
-apt update > /dev/null 2>&1
-
-echo "Installing zsh and plugins..."
-apt install -y zsh zsh-syntax-highlighting zsh-autosuggestions > /dev/null 2>&1
-
-echo "Creating .zshrc at $REAL_HOME/.zshrc..."
-cat << 'ZSHRC' > "$REAL_HOME/.zshrc"
-HISTFILE=~/.zsh_history
-HISTSIZE=50000
-SAVEHIST=50000
-setopt APPEND_HISTORY SHARE_HISTORY HIST_IGNORE_ALL_DUPS HIST_IGNORE_SPACE
-setopt AUTO_CD EXTENDED_GLOB
-unsetopt NOMATCH
-precmd() { print -rP "%F{red}%n %f- %F{white}%m %f[%F{blue}%1~%f]"; }
-PROMPT='%F{cyan}%D{%a %b %d} %F{yellow}%t %F{green}➤ %f'
-alias apt='sudo apt'
-[ -f /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh ] && source /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh
-[ -f /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ] && source /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
-ZSHRC
-chown "$REAL_USER:$REAL_USER" "$REAL_HOME/.zshrc"
-
-if ! grep -q "BEGIN Z-ON LAUNCHER" "$REAL_HOME/.bashrc" 2>/dev/null; then
-    cat << 'BASH_LAUNCH' >> "$REAL_HOME/.bashrc"
-
-# BEGIN Z-ON LAUNCHER
-if [[ -t 1 && -x $(command -v zsh) ]]; then
-  exec zsh -l
-fi
-# END Z-ON LAUNCHER
-BASH_LAUNCH
-fi
-
-chsh -s "$(command -v zsh)" "$REAL_USER"
-echo -e "\033[0;32m[SUCCESS]\033[0m Switching to Zsh..."
-
-if [ "$USER" != "$REAL_USER" ]; then
-    exec su - "$REAL_USER" -P -c "exec zsh -l"
-else
-    exec zsh -l
-fi
-ON_EOF
-
-# ────────────────────────────────────────────────
-# Z-OFF SCRIPT
-# ────────────────────────────────────────────────
-cat << 'OFF_EOF' > /usr/local/bin/z-off
-#!/bin/bash
-set -euo pipefail
-
-if [ "$EUID" -eq 0 ]; then
-    if [ -n "${SUDO_USER:-}" ]; then
-        REAL_USER="$SUDO_USER"
-        REAL_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
-    else
-        REAL_USER="root"
-        REAL_HOME="/root"
-    fi
-else
-    REAL_USER="$USER"
-    REAL_HOME="$HOME"
-fi
-
-if [ "$EUID" -ne 0 ]; then
-    echo -e "\033[0;31m[ERROR]\033[0m z-off requires sudo. Please run: sudo z-off"
-    exit 1
-fi
-
-echo "Reverting to bash for $REAL_USER..."
-if [ -f "$REAL_HOME/.bashrc" ]; then
-    # SILENT CLEANUP: Removes the block without throwing an error if it's missing
-    sed -i '/# BEGIN Z-ON LAUNCHER/,/# END Z-ON LAUNCHER/d' "$REAL_HOME/.bashrc" 2>/dev/null || true
-fi
-
-chsh -s "$(command -v bash)" "$REAL_USER"
-echo -e "\033[0;32m[SUCCESS]\033[0m Switching back to Bash..."
-
-if [ "$USER" != "$REAL_USER" ]; then
-    # -P ensures we have a PTY for the terminal session
-    exec su - "$REAL_USER" -P -c "exec bash -l"
-else
-    # --login forces a fresh environment replacement for root
-    exec /usr/bin/bash --login
-fi
-OFF_EOF
-
-chmod +x /usr/local/bin/z-on /usr/local/bin/z-off
-
-echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo -e "\033[0;32m[SUCCESS]\033[0m Installation Complete!"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "Run 'z-on' or 'z-off' to switch instantly."
+curl -sSL https://raw.githubusercontent.com/TerryClaiborne/Zsh-Bash/main/install.sh | sudo bash
