@@ -214,14 +214,10 @@ if ! chsh -s "$BASH_PATH" "$REAL_USER"; then
 fi
 
 echo -e "\033[0;32m[SUCCESS]\033[0m Shell changed back to bash for $REAL_USER"
-echo "Launching bash..."
+echo ""
+echo "NOTE: To complete the switch, please close this terminal"
+echo "      and open a new one, or simply type: exec bash -l"
 
-if [ "$USER" != "$REAL_USER" ]; then
-    # THE PTY FIX: Added -P to prevent "Inappropriate ioctl" error
-    su - "$REAL_USER" -P -c "exec bash -l"
-else
-    exec bash -l
-fi
 OFF_EOF
 
 chmod +x /usr/local/bin/z-on /usr/local/bin/z-off
