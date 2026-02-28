@@ -1,4 +1,6 @@
 #!/bin/bash
+set -euo pipefail
+
 #
 # Copyright (C) 2026 Terry L. Claiborne, KC3KMV
 #
@@ -9,99 +11,249 @@
 #
 # Zsh Shell / Bash Shell Switcher - Debian 12 Debian 13
 # Easily toggle between a custom Zsh setup and standard Bash.
+# Universal version - works for any user and root
 
-# Check if script is run as root
-if [ "$EUID" -ne 0 ]; then 
-  echo "Please run with sudo: sudo bash install.sh"
-  exit
+# ────────────────────────────────────────────────
+# UNIVERSAL USER DETECTION
+# ────────────────────────────────────────────────
+# Works whether called as: user, sudo user, or root directly
+
+if [ "$EUID" -eq 0 ]; then
+    # Running as root via sudo or directly
+    if [ -n "${SUDO_USER:-}" ]; then
+        # Called with sudo
+        REAL_USER="$SUDO_USER"
+        REAL_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
+    else
+        # Running as root directly (no sudo)
+        REAL_USER="root"
+        REAL_HOME="/root"
+    fi
+else
+    # Running as regular user (not sudo, not root)
+    REAL_USER="$USER"
+    REAL_HOME="$HOME"
 fi
 
-echo "Installing z-on and z-off scripts..."
+echo "Detected user: $REAL_USER"
+echo "Home directory: $REAL_HOME"
+
+# For installation, we need root
+if [ "$EUID" -ne 0 ]; then
+    echo -e "\033[0;31m[ERROR]\033[0m Installation requires root. Please run: sudo bash $0"
+    exit 1
+fi
+
+echo "Installing z-on and z-off to /usr/local/bin..."
 
 # ────────────────────────────────────────────────
-# 1. Create the z-on script
+# Z-ON SCRIPT
 # ────────────────────────────────────────────────
-cat << 'EOF' > /usr/local/bin/z-on
+cat << 'ON_EOF' > /usr/local/bin/z-on
 #!/bin/bash
-sudo apt update
-sudo apt install -y zsh zsh-syntax-highlighting zsh-autosuggestions
-chsh -s $(which zsh)
+set -euo pipefail
 
-cat << 'ZSHRC' > ~/.zshrc
+# UNIVERSAL USER DETECTION (same logic)
+if [ "$EUID" -eq 0 ]; then
+    if [ -n "${SUDO_USER:-}" ]; then
+        REAL_USER="$SUDO_USER"
+        REAL_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
+    else
+        REAL_USER="root"
+        REAL_HOME="/root"
+    fi
+else
+    REAL_USER="$USER"
+    REAL_HOME="$HOME"
+fi
+
+echo "Target user: $REAL_USER ($REAL_HOME)"
+
+# For package installation, we need root
+if [ "$EUID" -ne 0 ]; then
+    echo -e "\033[0;31m[ERROR]\033[0m z-on requires sudo. Please run: sudo z-on"
+    exit 1
+fi
+
+echo "Updating packages..."
+if ! apt update 2>&1 | grep -q "Reading"; then
+    echo -e "\033[0;31m[ERROR]\033[0m Failed to update packages"
+    exit 1
+fi
+
+echo "Installing zsh and plugins..."
+if ! apt install -y zsh zsh-syntax-highlighting zsh-autosuggestions > /dev/null 2>&1; then
+    echo -e "\033[0;31m[ERROR]\033[0m Failed to install zsh packages"
+    exit 1
+fi
+
+echo "Creating .zshrc at $REAL_HOME/.zshrc..."
+
+cat << 'ZSHRC' > "$REAL_HOME/.zshrc"
+# Zsh History Configuration
 HISTFILE=~/.zsh_history
 HISTSIZE=50000
 SAVEHIST=50000
 setopt APPEND_HISTORY SHARE_HISTORY HIST_IGNORE_ALL_DUPS HIST_IGNORE_SPACE
 setopt AUTO_CD EXTENDED_GLOB
-setopt interactive_comments
 unsetopt NOMATCH
 
-precmd() {
-  print -rP "%F{red}%n %f- %F{white}%m %f[%F{blue}%1~%f]"
-}
-
+# Prompt Configuration
+precmd() { print -rP "%F{red}%n %f- %F{white}%m %f[%F{blue}%1~%f]"; }
 PROMPT='%F{cyan}%D{%a %b %d} %F{yellow}%t %F{green}➤ %f'
 
+# Aliases
 alias apt='sudo apt'
+update-system() { sudo apt update && sudo apt full-upgrade -y && sudo apt autoremove --purge -y; }
 
-update-system() {
-    sudo apt update && sudo apt full-upgrade -y && sudo apt autoremove --purge -y && sudo apt clean
-}
-
-autoload -Uz compinit && compinit
-zstyle ':completion:*' matcher-list 'm:{a-z}={A-Z}'
-
-[[ -f /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh ]] && \
+# Load plugins (safe check)
+[ -f /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh ] && \
   source /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh
-[[ -f /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]] && \
+[ -f /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ] && \
   source /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
 
-autoload -U up-line-or-beginning-search down-line-or-beginning-search
+# History search with arrow keys
+autoload -U up-line-or-beginning-search
 zle -N up-line-or-beginning-search
-zle -N down-line-or-beginning-search
 bindkey "^[[A" up-line-or-beginning-search
-bindkey "^[[B" down-line-or-beginning-search
 ZSHRC
 
-if ! grep -q "exec zsh" ~/.bashrc 2>/dev/null; then
-  cat << 'FALLBACK' >> ~/.bashrc
+# Fix ownership (critical for non-root users)
+if ! chown "$REAL_USER:$REAL_USER" "$REAL_HOME/.zshrc"; then
+    echo -e "\033[0;31m[ERROR]\033[0m Failed to set .zshrc ownership"
+    exit 1
+fi
+
+echo "Configuring .bashrc..."
+
+# Create or update .bashrc for zsh launcher
+if [ ! -f "$REAL_HOME/.bashrc" ]; then
+    cat > "$REAL_HOME/.bashrc" << 'BASHRC'
+# Default bash configuration
+[ -z "$PS1" ] && return
+
+# Start Zsh if available
 if [[ -t 1 && -x $(command -v zsh) ]]; then
   exec zsh -l
 fi
-FALLBACK
+BASHRC
+    chown "$REAL_USER:$REAL_USER" "$REAL_HOME/.bashrc"
+    echo "Created new .bashrc"
+else
+    # Don't add if already present
+    if ! grep -q "exec zsh" "$REAL_HOME/.bashrc"; then
+        echo -e "\n# Start Zsh\nif [[ -t 1 && -x \$(command -v zsh) ]]; then exec zsh -l; fi" >> "$REAL_HOME/.bashrc"
+        echo "Added zsh launcher to .bashrc"
+    else
+        echo ".bashrc already configured for zsh"
+    fi
 fi
 
-if [ -x "$(command -v zsh)" ]; then
+ZSH_PATH=$(command -v zsh)
+echo "Changing default shell to $ZSH_PATH..."
+
+if ! chsh -s "$ZSH_PATH" "$REAL_USER"; then
+    echo -e "\033[0;31m[ERROR]\033[0m Failed to change shell for $REAL_USER"
+    exit 1
+fi
+
+echo -e "\033[0;32m[SUCCESS]\033[0m Zsh installed and configured for $REAL_USER"
+echo "Launching zsh..."
+
+# Switch to the target user if not already that user
+if [ "$USER" != "$REAL_USER" ]; then
+    su - "$REAL_USER" -c "exec zsh -l"
+else
     exec zsh -l
 fi
-EOF
+ON_EOF
 
 # ────────────────────────────────────────────────
-# 2. Create the z-off script
+# Z-OFF SCRIPT
 # ────────────────────────────────────────────────
-cat << 'EOF' > /usr/local/bin/z-off
+cat << 'OFF_EOF' > /usr/local/bin/z-off
 #!/bin/bash
-TARGET_HOME="$HOME"
-TARGET_USER="$USER"
+set -euo pipefail
 
-cp /etc/skel/.bashrc "$TARGET_HOME/.bashrc"
+# UNIVERSAL USER DETECTION (same logic)
+if [ "$EUID" -eq 0 ]; then
+    if [ -n "${SUDO_USER:-}" ]; then
+        REAL_USER="$SUDO_USER"
+        REAL_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
+    else
+        REAL_USER="root"
+        REAL_HOME="/root"
+    fi
+else
+    REAL_USER="$USER"
+    REAL_HOME="$HOME"
+fi
 
-sed -i '/exec zsh/d' "$TARGET_HOME/.bashrc"
-sed -i '/zsh -l/d' "$TARGET_HOME/.bashrc"
+echo "Target user: $REAL_USER ($REAL_HOME)"
 
-echo "PS1='\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\\\$\[\033[00m\] '" >> "$TARGET_HOME/.bashrc"
+# For shell change, we need root
+if [ "$EUID" -ne 0 ]; then
+    echo -e "\033[0;31m[ERROR]\033[0m z-off requires sudo. Please run: sudo z-off"
+    exit 1
+fi
 
-echo "alias apt='sudo apt'" >> "$TARGET_HOME/.bashrc"
+echo "Reverting to bash..."
 
-sudo chsh -s $(which bash) "$TARGET_USER"
+# Ensure .bashrc exists
+if [ ! -f "$REAL_HOME/.bashrc" ]; then
+    echo "Creating default .bashrc..."
+    cat > "$REAL_HOME/.bashrc" << 'DEFAULT_BASH'
+# Default bash configuration
+[ -z "$PS1" ] && return
 
-exec bash -l
-EOF
+PS1='\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
+alias apt='sudo apt'
+DEFAULT_BASH
+    chown "$REAL_USER:$REAL_USER" "$REAL_HOME/.bashrc"
+else
+    # Remove only the zsh launcher lines
+    if grep -q "# Start Zsh\|exec zsh" "$REAL_HOME/.bashrc"; then
+        sed -i '/# Start Zsh/,/fi/d' "$REAL_HOME/.bashrc"
+        # Also handle inline versions
+        sed -i '/exec zsh/d' "$REAL_HOME/.bashrc"
+        echo "Removed zsh launcher from .bashrc"
+    else
+        echo "Zsh launcher not found in .bashrc"
+    fi
+fi
 
-# 3. Set executable permissions
+BASH_PATH=$(command -v bash)
+echo "Changing default shell to $BASH_PATH..."
+
+if ! chsh -s "$BASH_PATH" "$REAL_USER"; then
+    echo -e "\033[0;31m[ERROR]\033[0m Failed to change shell for $REAL_USER"
+    exit 1
+fi
+
+echo -e "\033[0;32m[SUCCESS]\033[0m Shell changed back to bash for $REAL_USER"
+echo "Launching bash..."
+
+# Switch to the target user if not already that user
+if [ "$USER" != "$REAL_USER" ]; then
+    su - "$REAL_USER" -c "exec bash -l"
+else
+    exec bash -l
+fi
+OFF_EOF
+
 chmod +x /usr/local/bin/z-on /usr/local/bin/z-off
 
-echo "-------------------------------------------"
-echo "SUCCESS: Installation Complete!"
-echo "Commands available: z-on, z-off"
-echo "-------------------------------------------"
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo -e "\033[0;32m[SUCCESS]\033[0m Installation Complete!"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+echo "Usage:"
+echo "  Regular user:  z-on  (will prompt for sudo password)"
+echo "  Regular user:  sudo z-on"
+echo "  Root user:     z-on  (no sudo needed)"
+echo ""
+echo "  Regular user:  z-off  (will prompt for sudo password)"
+echo "  Regular user:  sudo z-off"
+echo "  Root user:     z-off  (no sudo needed)"
+echo ""
