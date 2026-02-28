@@ -45,6 +45,7 @@ See all active bindings:
 ```bash
 bindkey
 
+
 ### 📥 Installation
 
 Copy and paste this command into your terminal:
