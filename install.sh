@@ -1,18 +1,28 @@
 #!/bin/bash
+set -euo pipefail
 
-# z-on script to add zsh launcher block to .bashrc
 # BEGIN Z-ON LAUNCHER
-if [ -z "$ZSH_LAUNCHER_LOADED" ]; then
-    export ZSH_LAUNCHER_LOADED=true
-    # Add your zsh launcher lines below this line
-    echo 'source ~/path/to/your/zsh_launcher.sh' >> ~/.bashrc
+if [ -z "$BASH_VERSION" ]; then
+    echo "This script is intended for use with bash."
+    exit 1
 fi
+
+# Function to add the zsh launcher to .bashrc
+z_on() {
+    if ! grep -q "# BEGIN Z-ON LAUNCHER" ~/.bashrc; then
+        echo "\n# BEGIN Z-ON LAUNCHER" >> ~/.bashrc
+        echo "source /path/to/zsh_launcher.zsh" >> ~/.bashrc
+        echo "# END Z-ON LAUNCHER" >> ~/.bashrc
+    else
+        echo "Z-on launcher already exists in .bashrc."
+    fi
+}
+
+# Function to remove the zsh launcher from .bashrc
+z_off() {
+    sed -i.bak '/# BEGIN Z-ON LAUNCHER/,/# END Z-ON LAUNCHER/d' ~/.bashrc
+}
+# Usage example
+# z_on  # To add
+# z_off # To remove
 # END Z-ON LAUNCHER
-
-
-# z-off script to remove zsh launcher block from .bashrc
-# Using `sed` to remove from BEGIN to END markers inclusively
-if [ -n "$ZSH_LAUNCHER_LOADED" ]; then
-    sed -i '/# BEGIN Z-ON LAUNCHER/,/# END Z-ON LAUNCHER/d' ~/.bashrc
-    unset ZSH_LAUNCHER_LOADED
-fi
