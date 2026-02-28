@@ -196,19 +196,13 @@ if [ ! -f "$REAL_HOME/.bashrc" ]; then
     cat > "$REAL_HOME/.bashrc" << 'DEFAULT_BASH'
 # Default bash configuration
 [ -z "$PS1" ] && return
-
 PS1='\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
 alias apt='sudo apt'
 DEFAULT_BASH
     chown "$REAL_USER:$REAL_USER" "$REAL_HOME/.bashrc"
 else
-    # Remove only the marked zsh launcher block - SAFE removal with markers
-    if grep -q "BEGIN Z-ON LAUNCHER" "$REAL_HOME/.bashrc"; then
-        sed -i '/# BEGIN Z-ON LAUNCHER/,/# END Z-ON LAUNCHER/d' "$REAL_HOME/.bashrc"
-        echo "Removed zsh launcher from .bashrc"
-    else
-        : # Do nothing if not found
-    fi
+    # SILENT CLEANUP: Removes the Zsh block if it exists, stays quiet if it doesn't
+    sed -i '/# BEGIN Z-ON LAUNCHER/,/# END Z-ON LAUNCHER/d' "$REAL_HOME/.bashrc"
 fi
 
 BASH_PATH=$(command -v bash)
@@ -223,7 +217,8 @@ echo -e "\033[0;32m[SUCCESS]\033[0m Shell changed back to bash for $REAL_USER"
 echo "Launching bash..."
 
 if [ "$USER" != "$REAL_USER" ]; then
-    su - "$REAL_USER" -c "exec bash -l"
+    # THE PTY FIX: Added -P to prevent "Inappropriate ioctl" error
+    su - "$REAL_USER" -P -c "exec bash -l"
 else
     exec bash -l
 fi
