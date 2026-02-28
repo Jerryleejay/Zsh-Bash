@@ -42,9 +42,7 @@ Beyond Up/Down arrows for history:
 - `Ctrl + Z` — suspend current process to background  
 
 See all active bindings:  
-```bash
 bindkey
-
 
 ### 📥 Installation
 
