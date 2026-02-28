@@ -1,8 +1,10 @@
 #!/bin/bash
 
-# This script will install the necessary configurations.
+# Updated z-off script with safer sed pattern
 
-# Fix z-off script sed command
-sed -i.bak '/^source ~/.bashrc/d' ~/.bashrc
+# Start marker
+START_MARKER='# BEGIN z-off'
+END_MARKER='# END z-off'
 
-# Other installation commands here...
+# Use sed to modify the .bashrc without orphaning fi statements
+sed -i "/$START_MARKER/,/$END_MARKER/d" ~/.bashrc
