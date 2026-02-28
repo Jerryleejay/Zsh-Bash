@@ -55,7 +55,7 @@ else
 fi
 
 if [ "$EUID" -ne 0 ]; then
-    echo -e "\033[0;31m[ERROR]\033[0m z-on requires sudo."
+    echo -e "\033[0;31m[ERROR]\033[0m z-on requires sudo. Please run: sudo z-on"
     exit 1
 fi
 
@@ -65,7 +65,7 @@ apt update > /dev/null 2>&1
 echo "Installing zsh and plugins..."
 apt install -y zsh zsh-syntax-highlighting zsh-autosuggestions > /dev/null 2>&1
 
-echo "Configuring .zshrc for $REAL_USER..."
+echo "Creating .zshrc at $REAL_HOME/.zshrc..."
 cat << 'ZSHRC' > "$REAL_HOME/.zshrc"
 HISTFILE=~/.zsh_history
 HISTSIZE=50000
@@ -81,7 +81,6 @@ alias apt='sudo apt'
 ZSHRC
 chown "$REAL_USER:$REAL_USER" "$REAL_HOME/.zshrc"
 
-# Inject Zsh launcher into .bashrc safely
 if ! grep -q "BEGIN Z-ON LAUNCHER" "$REAL_HOME/.bashrc" 2>/dev/null; then
     cat << 'BASH_LAUNCH' >> "$REAL_HOME/.bashrc"
 
@@ -96,13 +95,13 @@ fi
 chsh -s "$(command -v zsh)" "$REAL_USER"
 echo -e "\033[0;32m[SUCCESS]\033[0m Switching to Zsh..."
 
-# Force immediate switch
 if [ "$USER" != "$REAL_USER" ]; then
-    exec su - "$REAL_USER"
+    exec su - "$REAL_USER" -P -c "exec zsh -l"
 else
     exec zsh -l
 fi
 ON_EOF
+
 # ────────────────────────────────────────────────
 # Z-OFF SCRIPT
 # ────────────────────────────────────────────────
@@ -110,32 +109,38 @@ cat << 'OFF_EOF' > /usr/local/bin/z-off
 #!/bin/bash
 set -euo pipefail
 
-# 1. Detect Real User
 if [ "$EUID" -eq 0 ]; then
-    REAL_USER="${SUDO_USER:-root}"
-    REAL_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
+    if [ -n "${SUDO_USER:-}" ]; then
+        REAL_USER="$SUDO_USER"
+        REAL_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
+    else
+        REAL_USER="root"
+        REAL_HOME="/root"
+    fi
 else
     REAL_USER="$USER"
     REAL_HOME="$HOME"
-    echo -e "\033[0;31m[ERROR]\033[0m z-off requires sudo. Run: sudo z-off"
+fi
+
+if [ "$EUID" -ne 0 ]; then
+    echo -e "\033[0;31m[ERROR]\033[0m z-off requires sudo. Please run: sudo z-off"
     exit 1
 fi
 
 echo "Reverting to bash for $REAL_USER..."
+if [ -f "$REAL_HOME/.bashrc" ]; then
+    # SILENT CLEANUP: Removes the block without throwing an error if it's missing
+    sed -i '/# BEGIN Z-ON LAUNCHER/,/# END Z-ON LAUNCHER/d' "$REAL_HOME/.bashrc" 2>/dev/null || true
+fi
 
-# 2. Cleanup .bashrc and change system default shell
-[ -f "$REAL_HOME/.bashrc" ] && sed -i '/# BEGIN Z-ON LAUNCHER/,/# END Z-ON LAUNCHER/d' "$REAL_HOME/.bashrc"
-chsh -s /usr/bin/bash "$REAL_USER"
+chsh -s "$(command -v bash)" "$REAL_USER"
+echo -e "\033[0;32m[SUCCESS]\033[0m Switching back to Bash..."
 
-echo -e "\033[0;32m[SUCCESS]\033[0m Default shell is now Bash."
-
-# 3. THE FORCE-REPLACE LOGIC
-# This kills the current Zsh process and replaces it with Bash
 if [ "$USER" != "$REAL_USER" ]; then
-    # If running via sudo, drop root and exec a fresh bash login shell as the user
-    exec su - "$REAL_USER"
+    # -P ensures we have a PTY for the terminal session
+    exec su - "$REAL_USER" -P -c "exec bash -l"
 else
-    # If running as direct root, replace current shell with root bash
+    # --login forces a fresh environment replacement for root
     exec /usr/bin/bash --login
 fi
 OFF_EOF
@@ -146,4 +151,4 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo -e "\033[0;32m[SUCCESS]\033[0m Installation Complete!"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "Run 'z-on' to start Zsh or 'z-off' to return to Bash."
+echo "Run 'z-on' or 'z-off' to switch instantly."
