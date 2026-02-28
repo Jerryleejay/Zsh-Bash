@@ -4,13 +4,7 @@ set -euo pipefail
 #
 # Copyright (C) 2026 Terry L. Claiborne, KC3KMV
 #
-# This program is free software; you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; either version 2 of the License, or
-# (at your option) any later version.
-#
 # Zsh Shell / Bash Shell Switcher - Debian 12 Debian 13
-# Easily toggle between a custom Zsh setup and standard Bash.
 # Universal version - works for any user and root
 
 # ────────────────────────────────────────────────
@@ -60,103 +54,51 @@ else
     REAL_HOME="$HOME"
 fi
 
-echo "Target user: $REAL_USER ($REAL_HOME)"
-
 if [ "$EUID" -ne 0 ]; then
-    echo -e "\033[0;31m[ERROR]\033[0m z-on requires sudo. Please run: sudo z-on"
+    echo -e "\033[0;31m[ERROR]\033[0m z-on requires sudo."
     exit 1
 fi
 
 echo "Updating packages..."
-if ! apt update 2>&1 | grep -q "Reading"; then
-    echo -e "\033[0;31m[ERROR]\033[0m Failed to update packages"
-    exit 1
-fi
+apt update > /dev/null 2>&1
 
 echo "Installing zsh and plugins..."
-if ! apt install -y zsh zsh-syntax-highlighting zsh-autosuggestions > /dev/null 2>&1; then
-    echo -e "\033[0;31m[ERROR]\033[0m Failed to install zsh packages"
-    exit 1
-fi
+apt install -y zsh zsh-syntax-highlighting zsh-autosuggestions > /dev/null 2>&1
 
-echo "Creating .zshrc at $REAL_HOME/.zshrc..."
-
+echo "Configuring .zshrc for $REAL_USER..."
 cat << 'ZSHRC' > "$REAL_HOME/.zshrc"
-# Zsh History Configuration
 HISTFILE=~/.zsh_history
 HISTSIZE=50000
 SAVEHIST=50000
 setopt APPEND_HISTORY SHARE_HISTORY HIST_IGNORE_ALL_DUPS HIST_IGNORE_SPACE
 setopt AUTO_CD EXTENDED_GLOB
 unsetopt NOMATCH
-
-# Prompt Configuration
 precmd() { print -rP "%F{red}%n %f- %F{white}%m %f[%F{blue}%1~%f]"; }
 PROMPT='%F{cyan}%D{%a %b %d} %F{yellow}%t %F{green}➤ %f'
-
-# Aliases
 alias apt='sudo apt'
-update-system() { sudo apt update && sudo apt full-upgrade -y && sudo apt autoremove --purge -y; }
-
-# Load plugins (safe check)
-[ -f /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh ] && \
-  source /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh
-[ -f /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ] && \
-  source /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
-
-# History search with arrow keys
-autoload -U up-line-or-beginning-search
-zle -N up-line-or-beginning-search
-bindkey "^[[A" up-line-or-beginning-search
+[ -f /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh ] && source /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh
+[ -f /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ] && source /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
 ZSHRC
+chown "$REAL_USER:$REAL_USER" "$REAL_HOME/.zshrc"
 
-if ! chown "$REAL_USER:$REAL_USER" "$REAL_HOME/.zshrc"; then
-    echo -e "\033[0;31m[ERROR]\033[0m Failed to set .zshrc ownership"
-    exit 1
-fi
-
-echo "Configuring .bashrc..."
-
-if [ ! -f "$REAL_HOME/.bashrc" ]; then
-    cat > "$REAL_HOME/.bashrc" << 'BASHRC'
-# Default bash configuration
-[ -z "$PS1" ] && return
+# Inject Zsh launcher into .bashrc safely
+if ! grep -q "BEGIN Z-ON LAUNCHER" "$REAL_HOME/.bashrc" 2>/dev/null; then
+    cat << 'BASH_LAUNCH' >> "$REAL_HOME/.bashrc"
 
 # BEGIN Z-ON LAUNCHER
 if [[ -t 1 && -x $(command -v zsh) ]]; then
   exec zsh -l
 fi
 # END Z-ON LAUNCHER
-BASHRC
-    chown "$REAL_USER:$REAL_USER" "$REAL_HOME/.bashrc"
-    echo "Created new .bashrc"
-else
-    if ! grep -q "BEGIN Z-ON LAUNCHER" "$REAL_HOME/.bashrc"; then
-        echo "" >> "$REAL_HOME/.bashrc"
-        echo "# BEGIN Z-ON LAUNCHER" >> "$REAL_HOME/.bashrc"
-        echo "if [[ -t 1 && -x \$(command -v zsh) ]]; then" >> "$REAL_HOME/.bashrc"
-        echo "  exec zsh -l" >> "$REAL_HOME/.bashrc"
-        echo "fi" >> "$REAL_HOME/.bashrc"
-        echo "# END Z-ON LAUNCHER" >> "$REAL_HOME/.bashrc"
-        echo "Added zsh launcher to .bashrc"
-    else
-        echo ".bashrc already configured for zsh"
-    fi
+BASH_LAUNCH
 fi
 
-ZSH_PATH=$(command -v zsh)
-echo "Changing default shell to $ZSH_PATH..."
+chsh -s "$(command -v zsh)" "$REAL_USER"
+echo -e "\033[0;32m[SUCCESS]\033[0m Switching to Zsh..."
 
-if ! chsh -s "$ZSH_PATH" "$REAL_USER"; then
-    echo -e "\033[0;31m[ERROR]\033[0m Failed to change shell for $REAL_USER"
-    exit 1
-fi
-
-echo -e "\033[0;32m[SUCCESS]\033[0m Zsh installed and configured for $REAL_USER"
-echo "Launching zsh..."
-
+# Force immediate switch
 if [ "$USER" != "$REAL_USER" ]; then
-    su - "$REAL_USER" -c "exec zsh -l"
+    exec su - "$REAL_USER"
 else
     exec zsh -l
 fi
@@ -182,42 +124,25 @@ else
     REAL_HOME="$HOME"
 fi
 
-echo "Target user: $REAL_USER ($REAL_HOME)"
-
 if [ "$EUID" -ne 0 ]; then
-    echo -e "\033[0;31m[ERROR]\033[0m z-off requires sudo. Please run: sudo z-off"
+    echo -e "\033[0;31m[ERROR]\033[0m z-off requires sudo."
     exit 1
 fi
 
-echo "Reverting to bash..."
-
-if [ ! -f "$REAL_HOME/.bashrc" ]; then
-    echo "Creating default .bashrc..."
-    cat > "$REAL_HOME/.bashrc" << 'DEFAULT_BASH'
-# Default bash configuration
-[ -z "$PS1" ] && return
-PS1='\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
-alias apt='sudo apt'
-DEFAULT_BASH
-    chown "$REAL_USER:$REAL_USER" "$REAL_HOME/.bashrc"
-else
-    # SILENT CLEANUP: Removes the Zsh block if it exists, stays quiet if it doesn't
+echo "Reverting to bash for $REAL_USER..."
+if [ -f "$REAL_HOME/.bashrc" ]; then
     sed -i '/# BEGIN Z-ON LAUNCHER/,/# END Z-ON LAUNCHER/d' "$REAL_HOME/.bashrc"
 fi
 
-BASH_PATH=$(command -v bash)
-echo "Changing default shell to $BASH_PATH..."
+chsh -s "$(command -v bash)" "$REAL_USER"
+echo -e "\033[0;32m[SUCCESS]\033[0m Switching back to Bash..."
 
-if ! chsh -s "$BASH_PATH" "$REAL_USER"; then
-    echo -e "\033[0;31m[ERROR]\033[0m Failed to change shell for $REAL_USER"
-    exit 1
+# Force immediate switch
+if [ "$USER" != "$REAL_USER" ]; then
+    exec su - "$REAL_USER"
+else
+    exec bash -l
 fi
-
-echo -e "\033[0;32m[SUCCESS]\033[0m Shell changed back to bash for $REAL_USER"
-echo ""
-echo "NOTE: To complete the switch, please close this terminal"
-echo "      and open a new one, or simply type: exec bash -l"
-
 OFF_EOF
 
 chmod +x /usr/local/bin/z-on /usr/local/bin/z-off
@@ -226,13 +151,4 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo -e "\033[0;32m[SUCCESS]\033[0m Installation Complete!"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo ""
-echo "Usage:"
-echo "  Regular user:  z-on  (will prompt for sudo password)"
-echo "  Regular user:  sudo z-on"
-echo "  Root user:     z-on  (no sudo needed)"
-echo ""
-echo "  Regular user:  z-off  (will prompt for sudo password)"
-echo "  Regular user:  sudo z-off"
-echo "  Root user:     z-off  (no sudo needed)"
-echo ""
+echo "Run 'z-on' to start Zsh or 'z-off' to return to Bash."
