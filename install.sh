@@ -103,7 +103,6 @@ else
     exec zsh -l
 fi
 ON_EOF
-
 # ────────────────────────────────────────────────
 # Z-OFF SCRIPT
 # ────────────────────────────────────────────────
@@ -111,37 +110,33 @@ cat << 'OFF_EOF' > /usr/local/bin/z-off
 #!/bin/bash
 set -euo pipefail
 
+# 1. Detect Real User
 if [ "$EUID" -eq 0 ]; then
-    if [ -n "${SUDO_USER:-}" ]; then
-        REAL_USER="$SUDO_USER"
-        REAL_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
-    else
-        REAL_USER="root"
-        REAL_HOME="/root"
-    fi
+    REAL_USER="${SUDO_USER:-root}"
+    REAL_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
 else
     REAL_USER="$USER"
     REAL_HOME="$HOME"
-fi
-
-if [ "$EUID" -ne 0 ]; then
-    echo -e "\033[0;31m[ERROR]\033[0m z-off requires sudo."
+    echo -e "\033[0;31m[ERROR]\033[0m z-off requires sudo. Run: sudo z-off"
     exit 1
 fi
 
 echo "Reverting to bash for $REAL_USER..."
-if [ -f "$REAL_HOME/.bashrc" ]; then
-    sed -i '/# BEGIN Z-ON LAUNCHER/,/# END Z-ON LAUNCHER/d' "$REAL_HOME/.bashrc"
-fi
 
-chsh -s "$(command -v bash)" "$REAL_USER"
-echo -e "\033[0;32m[SUCCESS]\033[0m Switching back to Bash..."
+# 2. Cleanup .bashrc and change system default shell
+[ -f "$REAL_HOME/.bashrc" ] && sed -i '/# BEGIN Z-ON LAUNCHER/,/# END Z-ON LAUNCHER/d' "$REAL_HOME/.bashrc"
+chsh -s /usr/bin/bash "$REAL_USER"
 
-# Force immediate switch
+echo -e "\033[0;32m[SUCCESS]\033[0m Default shell is now Bash."
+
+# 3. THE FORCE-REPLACE LOGIC
+# This kills the current Zsh process and replaces it with Bash
 if [ "$USER" != "$REAL_USER" ]; then
+    # If running via sudo, drop root and exec a fresh bash login shell as the user
     exec su - "$REAL_USER"
 else
-    exec bash -l
+    # If running as direct root, replace current shell with root bash
+    exec /usr/bin/bash --login
 fi
 OFF_EOF
 
