@@ -1,154 +1,107 @@
 #!/bin/bash
-set -euo pipefail
-
 #
 # Copyright (C) 2026 Terry L. Claiborne, KC3KMV
 #
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
 # Zsh Shell / Bash Shell Switcher - Debian 12 Debian 13
-# Universal version - works for any user and root
+# Easily toggle between a custom Zsh setup and standard Bash.
 
-# ────────────────────────────────────────────────
-# UNIVERSAL USER DETECTION
-# ────────────────────────────────────────────────
-
-if [ "$EUID" -eq 0 ]; then
-    if [ -n "${SUDO_USER:-}" ]; then
-        REAL_USER="$SUDO_USER"
-        REAL_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
-    else
-        REAL_USER="root"
-        REAL_HOME="/root"
-    fi
-else
-    REAL_USER="$USER"
-    REAL_HOME="$HOME"
+# Check if script is run as root
+if [ "$EUID" -ne 0 ]; then 
+  echo "Please run with sudo: sudo bash install.sh"
+  exit
 fi
 
-echo "Detected user: $REAL_USER"
-echo "Home directory: $REAL_HOME"
-
-if [ "$EUID" -ne 0 ]; then
-    echo -e "\033[0;31m[ERROR]\033[0m Installation requires root. Please run: sudo bash $0"
-    exit 1
-fi
-
-echo "Installing z-on and z-off to /usr/local/bin..."
+echo "Installing z-on and z-off scripts..."
 
 # ────────────────────────────────────────────────
-# Z-ON SCRIPT
+# 1. Create the z-on script
 # ────────────────────────────────────────────────
-cat << 'ON_EOF' > /usr/local/bin/z-on
+cat << 'EOF' > /usr/local/bin/z-on
 #!/bin/bash
-set -euo pipefail
+sudo apt update
+sudo apt install -y zsh zsh-syntax-highlighting zsh-autosuggestions
+chsh -s $(which zsh)
 
-if [ "$EUID" -eq 0 ]; then
-    if [ -n "${SUDO_USER:-}" ]; then
-        REAL_USER="$SUDO_USER"
-        REAL_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
-    else
-        REAL_USER="root"
-        REAL_HOME="/root"
-    fi
-else
-    REAL_USER="$USER"
-    REAL_HOME="$HOME"
-fi
-
-if [ "$EUID" -ne 0 ]; then
-    echo -e "\033[0;31m[ERROR]\033[0m z-on requires sudo. Please run: sudo z-on"
-    exit 1
-fi
-
-echo "Updating packages..."
-apt update > /dev/null 2>&1
-
-echo "Installing zsh and plugins..."
-apt install -y zsh zsh-syntax-highlighting zsh-autosuggestions > /dev/null 2>&1
-
-echo "Creating .zshrc at $REAL_HOME/.zshrc..."
-cat << 'ZSHRC' > "$REAL_HOME/.zshrc"
+cat << 'ZSHRC' > ~/.zshrc
 HISTFILE=~/.zsh_history
 HISTSIZE=50000
 SAVEHIST=50000
 setopt APPEND_HISTORY SHARE_HISTORY HIST_IGNORE_ALL_DUPS HIST_IGNORE_SPACE
 setopt AUTO_CD EXTENDED_GLOB
+setopt interactive_comments
 unsetopt NOMATCH
-precmd() { print -rP "%F{red}%n %f- %F{white}%m %f[%F{blue}%1~%f]"; }
+
+precmd() {
+  print -rP "%F{red}%n %f- %F{white}%m %f[%F{blue}%1~%f]"
+}
+
 PROMPT='%F{cyan}%D{%a %b %d} %F{yellow}%t %F{green}➤ %f'
+
 alias apt='sudo apt'
-[ -f /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh ] && source /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh
-[ -f /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ] && source /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+
+update-system() {
+    sudo apt update && sudo apt full-upgrade -y && sudo apt autoremove --purge -y && sudo apt clean
+}
+
+autoload -Uz compinit && compinit
+zstyle ':completion:*' matcher-list 'm:{a-z}={A-Z}'
+
+[[ -f /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh ]] && \
+  source /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh
+[[ -f /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]] && \
+  source /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+
+autoload -U up-line-or-beginning-search down-line-or-beginning-search
+zle -N up-line-or-beginning-search
+zle -N down-line-or-beginning-search
+bindkey "^[[A" up-line-or-beginning-search
+bindkey "^[[B" down-line-or-beginning-search
 ZSHRC
-chown "$REAL_USER:$REAL_USER" "$REAL_HOME/.zshrc"
 
-if ! grep -q "BEGIN Z-ON LAUNCHER" "$REAL_HOME/.bashrc" 2>/dev/null; then
-    cat << 'BASH_LAUNCH' >> "$REAL_HOME/.bashrc"
-
-# BEGIN Z-ON LAUNCHER
+if ! grep -q "exec zsh" ~/.bashrc 2>/dev/null; then
+  cat << 'FALLBACK' >> ~/.bashrc
 if [[ -t 1 && -x $(command -v zsh) ]]; then
   exec zsh -l
 fi
-# END Z-ON LAUNCHER
-BASH_LAUNCH
+FALLBACK
 fi
 
-chsh -s "$(command -v zsh)" "$REAL_USER"
-echo -e "\033[0;32m[SUCCESS]\033[0m Switching to Zsh..."
-
-if [ "$USER" != "$REAL_USER" ]; then
-    exec su - "$REAL_USER" -P -c "exec zsh -l"
-else
+if [ -x "$(command -v zsh)" ]; then
     exec zsh -l
 fi
-ON_EOF
+EOF
 
 # ────────────────────────────────────────────────
-# Z-OFF SCRIPT
+# 2. Create the z-off script
 # ────────────────────────────────────────────────
-cat << 'OFF_EOF' > /usr/local/bin/z-off
+cat << 'EOF' > /usr/local/bin/z-off
 #!/bin/bash
-set -euo pipefail
+TARGET_HOME="$HOME"
+TARGET_USER="$USER"
 
-if [ "$EUID" -eq 0 ]; then
-    if [ -n "${SUDO_USER:-}" ]; then
-        REAL_USER="$SUDO_USER"
-        REAL_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
-    else
-        REAL_USER="root"
-        REAL_HOME="/root"
-    fi
-else
-    REAL_USER="$USER"
-    REAL_HOME="$HOME"
-fi
+cp /etc/skel/.bashrc "$TARGET_HOME/.bashrc"
 
-if [ "$EUID" -ne 0 ]; then
-    echo -e "\033[0;31m[ERROR]\033[0m z-off requires sudo. Please run: sudo z-off"
-    exit 1
-fi
+sed -i '/exec zsh/d' "$TARGET_HOME/.bashrc"
+sed -i '/zsh -l/d' "$TARGET_HOME/.bashrc"
 
-echo "Reverting to bash for $REAL_USER..."
-if [ -f "$REAL_HOME/.bashrc" ]; then
-    # SILENT CLEANUP: Removes the block without throwing an error if it's missing
-    sed -i '/# BEGIN Z-ON LAUNCHER/,/# END Z-ON LAUNCHER/d' "$REAL_HOME/.bashrc" 2>/dev/null || true
-fi
+echo "PS1='\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\\\$\[\033[00m\] '" >> "$TARGET_HOME/.bashrc"
 
-chsh -s "$(command -v bash)" "$REAL_USER"
-echo -e "\033[0;32m[SUCCESS]\033[0m Switching back to Bash..."
+echo "alias apt='sudo apt'" >> "$TARGET_HOME/.bashrc"
 
-if [ "$USER" != "$REAL_USER" ]; then
-    # -P ensures we have a PTY for the terminal session
-    exec su - "$REAL_USER" -P -c "exec bash -l"
-else
-    # --login forces a fresh environment replacement for root
-    exec /usr/bin/bash --login
-fi
-OFF_EOF
+sudo chsh -s $(which bash) "$TARGET_USER"
 
+exec bash -l
+EOF
+
+# 3. Set executable permissions
 chmod +x /usr/local/bin/z-on /usr/local/bin/z-off
 
-echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo -e "\033[0;32m[SUCCESS]\033[0m Installation Complete!"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "Run 'z-on' or 'z-off' to switch instantly."
+echo "-------------------------------------------"
+echo "SUCCESS: Installation Complete!"
+echo "Commands available: z-on, z-off"
+echo "-------------------------------------------"
