@@ -207,7 +207,7 @@ else
         sed -i '/# BEGIN Z-ON LAUNCHER/,/# END Z-ON LAUNCHER/d' "$REAL_HOME/.bashrc"
         echo "Removed zsh launcher from .bashrc"
     else
-        echo "Zsh launcher not found in .bashrc"
+        : # Do nothing if not found
     fi
 fi
 
